@@ -328,7 +328,17 @@ func orDash(s string) string {
 func (m Model) handleDock(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	cs := m.chats[m.dock.key]
 	switch msg.String() {
-	case "esc", "ctrl+x":
+	case "esc":
+		// esc interrupts Claude (like Claude Code) — it never closes the dock.
+		if cs != nil && cs.running {
+			cs.cancel()
+			cs.running = false
+			cs.msgs = append(cs.msgs, chatMsg{role: chatRoleSystem, text: "· cancelled"})
+			return m, nil
+		}
+		m.status = "ctrl+x closes the chat"
+		return m, nil
+	case "ctrl+x":
 		// Close the dock. A running turn keeps going in the background —
 		// the footer pings when it finishes, A reopens the conversation.
 		m.chatInput.Blur()
@@ -463,9 +473,9 @@ func (m Model) viewDock() string {
 	wrap := lipgloss.NewStyle().Width(w)
 
 	headStyle := chatClaudeStyle
-	hint := "enter send · esc close · ctrl+y copy reply · ctrl+o full transcript · ctrl+u/d scroll"
+	hint := "enter send · ctrl+x close · ctrl+y copy reply · ctrl+o full transcript · ctrl+u/d scroll"
 	if cs.running {
-		hint = "ctrl+c cancel · " + hint + " (turn keeps running when closed)"
+		hint = "esc cancel · ctrl+x close (turn keeps running) · ctrl+u/d scroll"
 	}
 	if m.status != "" {
 		hint = m.status
