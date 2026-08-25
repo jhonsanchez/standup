@@ -138,7 +138,7 @@ func downloadLatest(exe, current string) error {
 		if filepath.Base(hdr.Name) != "standup" || hdr.Typeflag != tar.TypeReg {
 			continue
 		}
-		tmp := exe + ".new"
+		tmp := filepath.Join(os.TempDir(), "standup-upgrade")
 		f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
 		if err != nil {
 			return err
@@ -149,11 +149,36 @@ func downloadLatest(exe, current string) error {
 			return err
 		}
 		f.Close()
-		if err := os.Rename(tmp, exe); err != nil {
-			os.Remove(tmp)
+		defer os.Remove(tmp)
+		if err := installBinary(tmp, exe); err != nil {
 			return err
 		}
 		fmt.Println("✓ updated to " + rel.TagName + " (" + exe + ")")
 		return nil
 	}
+}
+
+// installBinary replaces exe with src, escalating with sudo when the target
+// directory isn't writable (e.g. /usr/local/bin).
+func installBinary(src, exe string) error {
+	// Atomic same-directory swap when we have write access.
+	staged := exe + ".new"
+	if data, err := os.ReadFile(src); err == nil {
+		if err := os.WriteFile(staged, data, 0o755); err == nil {
+			if err := os.Rename(staged, exe); err == nil {
+				return nil
+			}
+			os.Remove(staged)
+		} else if !os.IsPermission(err) {
+			return err
+		}
+	}
+	// No write access: fall back to sudo install.
+	fmt.Printf("%s is not writable — escalating with sudo…\n", filepath.Dir(exe))
+	cmd := exec.Command("sudo", "install", "-m", "755", src, exe)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("sudo install failed: %w — run manually: sudo install -m 755 %s %s", err, src, exe)
+	}
+	return nil
 }
