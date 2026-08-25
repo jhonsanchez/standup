@@ -108,7 +108,14 @@ const prSearchQuery = `
 query($authored: String!, $review: String!, $merged: String!) {
   authored: search(query: $authored, type: ISSUE, first: 50) { nodes { ...pr } }
   review: search(query: $review, type: ISSUE, first: 50) { nodes { ...pr } }
-  mergedPRs: search(query: $merged, type: ISSUE, first: 50) { nodes { ...pr } }
+  mergedPRs: search(query: $merged, type: ISSUE, first: 50) { nodes { ...prm } }
+}
+fragment prm on PullRequest {
+  number title url updatedAt additions deletions headRefName headRefOid
+  merged mergedAt
+  mergeCommit { oid statusCheckRollup { state } }
+  author { login }
+  repository { nameWithOwner }
 }
 fragment pr on PullRequest {
   number title url isDraft updatedAt additions deletions
@@ -497,36 +504,54 @@ func gql(ctx context.Context, g *config.GitHub, token, query string, vars map[st
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", graphQLURL(g), bytes.NewReader(payload))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
-
 	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			// GitHub's GraphQL endpoint 502s transiently under load —
+			// back off briefly and retry instead of failing the refresh.
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(time.Duration(attempt) * time.Second):
+			}
+		}
+		req, err := http.NewRequestWithContext(ctx, "POST", graphQLURL(g), bytes.NewReader(payload))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode >= 500 {
+			lastErr = fmt.Errorf("github graphql %s (transient — retried)", resp.Status)
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("github graphql %s: %s", resp.Status, truncate(string(body)))
+		}
+		var envelope struct {
+			Data   json.RawMessage `json:"data"`
+			Errors []struct {
+				Message string `json:"message"`
+			} `json:"errors"`
+		}
+		if err := json.Unmarshal(body, &envelope); err != nil {
+			return fmt.Errorf("github graphql: decoding response: %w", err)
+		}
+		if len(envelope.Errors) > 0 {
+			return fmt.Errorf("github graphql: %s", envelope.Errors[0].Message)
+		}
+		return json.Unmarshal(envelope.Data, out)
 	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("github graphql %s: %s", resp.Status, truncate(string(body)))
-	}
-	var envelope struct {
-		Data   json.RawMessage `json:"data"`
-		Errors []struct {
-			Message string `json:"message"`
-		} `json:"errors"`
-	}
-	if err := json.Unmarshal(body, &envelope); err != nil {
-		return fmt.Errorf("github graphql: decoding response: %w", err)
-	}
-	if len(envelope.Errors) > 0 {
-		return fmt.Errorf("github graphql: %s", envelope.Errors[0].Message)
-	}
-	return json.Unmarshal(envelope.Data, out)
+	return lastErr
 }
 
 // ---- REST (issues) ----
@@ -596,9 +621,9 @@ func repoFromURL(repoURL string) string {
 }
 
 func truncate(s string) string {
-	s = strings.TrimSpace(s)
-	if len(s) > 200 {
-		return s[:200]
+	s = strings.Join(strings.Fields(s), " ") // one line, no raw HTML spew
+	if len(s) > 160 {
+		return s[:160] + "…"
 	}
 	return s
 }
