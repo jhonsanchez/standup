@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // Event is one streamed chat event.
@@ -54,6 +55,7 @@ func Send(dir, sessionID, systemAppend, permMode, prompt string, extraEnv, allow
 	if sessionID != "" {
 		args = append(args, "--resume", sessionID)
 	}
+	debugLog(fmt.Sprintf("send dir=%s resume=%.8s env=%d args=%q", dir, sessionID, len(extraEnv), args))
 	cmd := exec.CommandContext(ctx, "claude", args...)
 	cmd.Dir = dir
 	if len(extraEnv) > 0 {
@@ -118,6 +120,8 @@ func Send(dir, sessionID, systemAppend, permMode, prompt string, extraEnv, allow
 				}
 			case "result":
 				gotResult = true
+				debugLog(fmt.Sprintf("result session=%.8s is_error=%v denials=%d subtype=%s",
+					session, ev.IsError, len(ev.PermissionDenials), ev.Subtype))
 				if len(ev.PermissionDenials) > 0 {
 					names := map[string]bool{}
 					var list []string
@@ -219,4 +223,21 @@ func compact(s string, n int) string {
 func fileExists(p string) bool {
 	st, err := os.Stat(p)
 	return err == nil && !st.IsDir()
+}
+
+// debugLog appends chat diagnostics to ~/.local/state/standup/chat-debug.log
+// so "what did the TUI actually execute" is answerable after the fact.
+func debugLog(line string) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	dir := filepath.Join(home, ".local", "state", "standup")
+	_ = os.MkdirAll(dir, 0o755)
+	f, err := os.OpenFile(filepath.Join(dir, "chat-debug.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fmt.Fprintf(f, "%s %s\n", time.Now().Format("15:04:05"), line)
 }
