@@ -388,6 +388,11 @@ func (m Model) handleDock(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			cs.scroll = 0
 		}
 		return m, nil
+	case "alt+enter", "ctrl+j":
+		// Multiline: shift+enter is indistinguishable from enter in most
+		// terminals, so alt+enter / ctrl+j insert the newline instead.
+		m.chatInput.InsertString("\n")
+		return m, nil
 	case "enter":
 		text := strings.TrimSpace(m.chatInput.Value())
 		if text == "" || cs == nil || cs.running {
@@ -473,7 +478,7 @@ func (m Model) viewDock() string {
 	wrap := lipgloss.NewStyle().Width(w)
 
 	headStyle := chatClaudeStyle
-	hint := "enter send · ctrl+x close · ctrl+y copy reply · ctrl+o full transcript · ctrl+u/d scroll"
+	hint := "enter send · ctrl+j newline · ctrl+x close · ctrl+y copy reply · ctrl+o transcript · ctrl+u/d scroll"
 	if cs.running {
 		hint = "esc cancel · ctrl+x close (turn keeps running) · ctrl+u/d scroll"
 	}
@@ -509,6 +514,14 @@ func (m Model) viewDock() string {
 	}
 
 	m.chatInput.SetWidth(w)
+	inLines := strings.Count(m.chatInput.Value(), "\n") + 1
+	if inLines < 2 {
+		inLines = 2
+	}
+	if inLines > 5 {
+		inLines = 5
+	}
+	m.chatInput.SetHeight(inLines)
 	input := m.chatInput.View()
 	footer := input + "\n" + helpStyle.MaxWidth(m.width).Render(hint)
 
