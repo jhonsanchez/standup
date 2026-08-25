@@ -76,6 +76,9 @@ func setIcons(mode string) {
 	if mode == "ascii" {
 		branchGlyph = "⎇"
 		githubGlyph = "⇄"
+	} else {
+		branchGlyph = ""
+		githubGlyph = "\uf408"
 	}
 }
 

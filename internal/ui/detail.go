@@ -119,7 +119,10 @@ func prNumber(key string) int {
 	return n
 }
 
-var issueKeyRe = regexp.MustCompile(`[A-Z][A-Z0-9]+-\d+`)
+var (
+	defaultIssueKeyRe = regexp.MustCompile(`[A-Z][A-Z0-9]+-\d+`)
+	issueKeyRe        = defaultIssueKeyRe
+)
 
 // jumpTargets returns where `p` can go from the current detail: an issue's
 // linked PRs, or a PR's referenced Jira issue.

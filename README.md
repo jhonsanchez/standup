@@ -137,6 +137,7 @@ shortcuts available for the row you're on, and stays pinned to the bottom.
 | `z` | collapse/expand all PR groups |
 | `o` | open item in browser |
 | `r` | refresh current client |
+| `e` | edit the config in `$EDITOR` — hot-reloads on save (a broken file keeps the old config and shows the error) |
 | `/` | filter (by key, title, or status); `esc` clears |
 | `q` | quit |
 

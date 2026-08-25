@@ -211,6 +211,53 @@ func (m Model) fetch(idx int) tea.Cmd {
 	}
 }
 
+type configEditedMsg struct {
+	err error
+}
+
+// reloadConfig re-reads the config after `e`. A broken file keeps the old
+// config running and surfaces the error instead of crashing the session.
+func (m Model) reloadConfig(msg configEditedMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		m.status = "editor: " + msg.err.Error()
+		return m, nil
+	}
+	newCfg, err := config.Load()
+	if err != nil {
+		m.status = "⚠ config not reloaded: " + err.Error()
+		return m, nil
+	}
+	// Preserve single-client mode (`standup <client>`).
+	if len(m.cfg.Clients) == 1 && len(newCfg.Clients) > 1 {
+		name := m.cfg.Clients[0].Name
+		for _, c := range newCfg.Clients {
+			if c.Name == name {
+				newCfg.Clients = []config.Client{c}
+				break
+			}
+		}
+	}
+	setIcons(newCfg.Icons)
+	issueKeyRe = defaultIssueKeyRe
+	if newCfg.LinkPattern != "" {
+		if re, err := regexp.Compile(newCfg.LinkPattern); err == nil {
+			issueKeyRe = re
+		}
+	}
+	m.cfg = newCfg
+	m.states = make([]clientState, len(newCfg.Clients))
+	if m.client >= len(newCfg.Clients) {
+		m.client = 0
+	}
+	m.cursor = map[string]int{}
+	m.expand = map[string]bool{}
+	m.collapsed = map[string]bool{}
+	m.detailStack = nil
+	m.states[m.client].loading = true
+	m.status = "✓ config reloaded"
+	return m, m.fetch(m.client)
+}
+
 func (m *Model) key() string {
 	return fmt.Sprintf("%d/%d", m.client, m.view)
 }
@@ -337,6 +384,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(cmds...)
 
+	case configEditedMsg:
+		return m.reloadConfig(msg)
+
 	case prDetailMsg, jiraDetailMsg, checkoutMsg, execDoneMsg:
 		return m.updateDetail(msg)
 
@@ -397,6 +447,20 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.clientPick = true
 		}
 		return m, nil
+
+	case "e":
+		// Edit the config in $EDITOR; hot-reload on return.
+		editor := os.Getenv("EDITOR")
+		if editor == "" {
+			editor = os.Getenv("VISUAL")
+		}
+		if editor == "" {
+			editor = "vim"
+		}
+		c := exec.Command(editor, config.Path())
+		return m, tea.ExecProcess(c, func(err error) tea.Msg {
+			return configEditedMsg{err: err}
+		})
 
 	case "tab", "shift+tab":
 		m.view = 1 - m.view
@@ -813,7 +877,7 @@ func (m Model) listHelp() string {
 			parts = append(parts, "o browser")
 		}
 	}
-	parts = append(parts, "r refresh", "/ filter", "q quit")
+	parts = append(parts, "r refresh", "/ filter", "e config", "q quit")
 	return strings.Join(parts, " · ")
 }
 
