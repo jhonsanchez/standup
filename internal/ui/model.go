@@ -331,6 +331,37 @@ func (m Model) reloadConfig(msg configEditedMsg) (tea.Model, tea.Cmd) {
 	return m, m.fetch(m.client)
 }
 
+// scrollBy routes mouse-wheel scrolling to whatever is on screen: the chat
+// dock, a detail view, or the list cursor.
+func (m Model) scrollBy(delta int) Model {
+	if m.dock != nil {
+		if cs := m.chats[m.dock.key]; cs != nil {
+			cs.scroll -= delta // wheel up = older lines
+			if cs.scroll < 0 {
+				cs.scroll = 0
+			}
+		}
+		return m
+	}
+	if t := m.top(); t != nil {
+		t.scroll += delta
+		if t.scroll < 0 {
+			t.scroll = 0
+		}
+		return m
+	}
+	rows := m.rows()
+	cur := m.cursor[m.key()] + delta
+	if cur > len(rows)-1 {
+		cur = len(rows) - 1
+	}
+	if cur < 0 {
+		cur = 0
+	}
+	m.cursor[m.key()] = cur
+	return m
+}
+
 func (m *Model) key() string {
 	return fmt.Sprintf("%d/%d", m.client, m.view)
 }
@@ -518,6 +549,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case branchDoneMsg:
 		return m.applyBranchDone(msg)
+
+	case tea.MouseMsg:
+		if msg.Action != tea.MouseActionPress {
+			return m, nil
+		}
+		var delta int
+		switch msg.Button {
+		case tea.MouseButtonWheelUp:
+			delta = -3
+		case tea.MouseButtonWheelDown:
+			delta = 3
+		default:
+			return m, nil
+		}
+		return m.scrollBy(delta), nil
 
 	case tea.KeyMsg:
 		if m.dock != nil {

@@ -2,6 +2,7 @@ package ui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jhonsanchez/standup/internal/chat"
 
 	"github.com/jhonsanchez/standup/internal/data"
 )
@@ -33,4 +34,20 @@ func InjectTestPRs(model tea.Model, prs []data.Item) tea.Model {
 	m := model.(Model)
 	m.states[m.client].prs = prs
 	return m
+}
+
+// InjectChatLine appends an assistant message to a chat session (test helper).
+func InjectChatLine(model tea.Model, key, text string) tea.Model {
+	m := model.(Model)
+	if cs := m.chats[key]; cs != nil {
+		cs.msgs = append(cs.msgs, chatMsg{role: chatRoleAssistant, text: text})
+	}
+	return m
+}
+
+// InjectChatEvent applies a chat delta event (test helper).
+func InjectChatEvent(model tea.Model, key, delta string) tea.Model {
+	m := model.(Model)
+	n, _ := m.applyChatEvent(chatEvMsg{key: key, ev: chat.Event{Delta: delta}})
+	return n
 }

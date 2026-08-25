@@ -165,6 +165,11 @@ type Client struct {
 	// this client (chat, agent, terminal, git UI) — e.g. a per-client
 	// CLAUDE_CONFIG_DIR so claude uses a client-specific profile.
 	Env map[string]string `yaml:"env,omitempty"`
+	// ChatAllowedTools pre-approves tools for the headless chat
+	// (--allowedTools). Headless runs cannot show permission prompts, so
+	// MCP tools like mcp__jira__add_comment must be listed here (or in the
+	// profile's settings.json) to work from the chat.
+	ChatAllowedTools []string `yaml:"chat_allowed_tools,omitempty"`
 }
 
 // EnvList renders Env as KEY=VALUE pairs, expanding a leading ~/ in values.

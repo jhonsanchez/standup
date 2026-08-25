@@ -356,8 +356,9 @@ func (m Model) handleDock(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if cs.claudeID == "" {
 			system = m.chatContext(cs.item)
 		}
+		client := m.cfg.Clients[m.client]
 		stream, err := chat.Send(cs.repoDir, cs.claudeID, system, m.cfg.ChatPermissionMode(), text,
-			m.cfg.Clients[m.client].EnvList())
+			client.EnvList(), client.ChatAllowedTools)
 		if err != nil {
 			m.status = "chat: " + err.Error()
 			return m, nil
@@ -403,6 +404,7 @@ func (m Model) applyChatEvent(msg chatEvMsg) (tea.Model, tea.Cmd) {
 			cs.msgs = append(cs.msgs, chatMsg{role: chatRoleAssistant, text: ev.Delta})
 		}
 	}
+	// Follow the tail only when the user hasn't scrolled up.
 	if ev.Done {
 		cs.running = false
 		if ev.SessionID != "" {
@@ -416,7 +418,6 @@ func (m Model) applyChatEvent(msg chatEvMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	cs.scroll = 0
 	return m, m.listenChat(cs)
 }
 

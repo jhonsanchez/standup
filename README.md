@@ -159,6 +159,10 @@ permission allowlists — no special commands. Tool activity streams as `⚒`
 lines, each issue keeps its own resumable session, `enter` sends, `esc`
 cancels a running turn or steps back. `commands.chat_permission_mode`
 (default `acceptEdits`, or `plan` for read-only) governs what it may do.
+Headless runs can't show permission prompts, so tools beyond your settings
+allowlists (e.g. Jira MCP tools) must be pre-approved per client via
+`chat_allowed_tools`. Mouse wheel scrolls the chat, detail views, and the
+list.
 The working directory resolves from the item's linked PR, a matching
 branch, or the client's `repo_map` (Jira project key → repo folder); with
 none of those, a type-to-filter **repo picker** asks once per issue —

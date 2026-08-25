@@ -180,6 +180,13 @@
               "type": "string"
             },
             "description": "Extra environment for every subprocess standup launches for this client (chat, agent, terminal, git UI). Values support a leading ~/. Example: {CLAUDE_CONFIG_DIR: ~/.claude-zebra} for a per-client Claude profile."
+          },
+          "chat_allowed_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tools pre-approved for the headless chat via --allowedTools (headless runs cannot show permission prompts). E.g. mcp__jira__add_comment, Bash(gh pr view *)."
           }
         }
       }

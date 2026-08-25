@@ -31,7 +31,7 @@ type Stream struct {
 // Send starts one headless claude turn in dir, resuming sessionID when set.
 // systemAppend (first turn) injects ticket context via --append-system-prompt.
 // permMode is required headless — the default mode would hang on prompts.
-func Send(dir, sessionID, systemAppend, permMode, prompt string, extraEnv []string) (*Stream, error) {
+func Send(dir, sessionID, systemAppend, permMode, prompt string, extraEnv, allowedTools []string) (*Stream, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	if permMode == "" {
 		permMode = "acceptEdits"
@@ -40,6 +40,9 @@ func Send(dir, sessionID, systemAppend, permMode, prompt string, extraEnv []stri
 		"--permission-mode", permMode}
 	if systemAppend != "" {
 		args = append(args, "--append-system-prompt", systemAppend)
+	}
+	if len(allowedTools) > 0 {
+		args = append(args, "--allowedTools", strings.Join(allowedTools, ","))
 	}
 	if sessionID != "" {
 		args = append(args, "--resume", sessionID)
