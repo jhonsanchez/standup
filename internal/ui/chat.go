@@ -226,7 +226,7 @@ func (m Model) viewRepoPick() string {
 		b.WriteString(subtaskStyle.Render("a branch named after the issue will be created and pushed (maps the issue to the repo)") + "\n\n")
 	} else {
 		b.WriteString(headerLabel.Render("Where should Claude work on "+rp.item.Key+"?") + "\n")
-		b.WriteString(subtaskStyle.Render("no linked PR or branch yet — pick a repo, enter with no filter = projects root ("+rp.root+") · tip: b maps this issue permanently via a branch") + "\n\n")
+		b.WriteString(subtaskStyle.Render("no local repo resolved for this item — pick one, enter with no filter = projects root ("+rp.root+") · tip: b maps an issue permanently via a branch") + "\n\n")
 	}
 	b.WriteString(rp.input.View() + "\n\n")
 	flt := rp.filtered()
@@ -268,6 +268,18 @@ func (m *Model) chatRepoDir(it data.Item) (string, bool) {
 	}
 	if brs := m.localBranches(it.Key); len(brs) > 0 {
 		return brs[0].RepoDir, true
+	}
+	// Family inheritance: a story with no link of its own borrows from its
+	// subtasks' PRs/branches (per-repo subtask stories are common).
+	for _, st := range it.Subtasks {
+		if pr := m.linkedPR(st.Key); pr != nil {
+			if dir, ok := client.RepoDir(pr.Repo); ok {
+				return dir, true
+			}
+		}
+		if brs := m.localBranches(st.Key); len(brs) > 0 {
+			return brs[0].RepoDir, true
+		}
 	}
 	if proj, _, ok := strings.Cut(it.Key, "-"); ok {
 		if repo := client.RepoMap[proj]; repo != "" {

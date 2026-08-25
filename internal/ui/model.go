@@ -754,11 +754,21 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.openChecks(pr)
 
 	case m.km.Is(msg, "chat"):
-		it, _, ok := m.cursorInfo()
+		it, key, ok := m.cursorInfo()
 		if !ok {
 			return m, nil
 		}
-		return m.openChat(*it)
+		target := *it
+		if key != it.Key { // subtask row: chat about the subtask, not the parent
+			for _, s := range it.Subtasks {
+				if s.Key == key {
+					target = data.Item{Kind: data.KindJiraIssue, Key: s.Key, Title: s.Summary,
+						Status: s.Status, StatusCategory: s.StatusCategory, URL: s.URL}
+					break
+				}
+			}
+		}
+		return m.openChat(target)
 
 	case m.km.Is(msg, "start-branch"):
 		it, _, ok := m.cursorInfo()
