@@ -659,14 +659,19 @@ func (m Model) View() string {
 	}
 	var b strings.Builder
 
-	// Header: title + client tabs.
+	// Header: title + client tabs. With hide_clients (or a single client),
+	// only the active client renders — other names never appear on screen.
 	var tabs []string
-	for i, c := range m.cfg.Clients {
-		label := fmt.Sprintf("%d:%s", i+1, c.Name)
-		if i == m.client {
-			tabs = append(tabs, clientTabActive.Render(label))
-		} else {
-			tabs = append(tabs, clientTabInactive.Render(label))
+	if m.cfg.HideClients || len(m.cfg.Clients) == 1 {
+		tabs = append(tabs, clientTabActive.Render(m.cfg.Clients[m.client].Name))
+	} else {
+		for i, c := range m.cfg.Clients {
+			label := fmt.Sprintf("%d:%s", i+1, c.Name)
+			if i == m.client {
+				tabs = append(tabs, clientTabActive.Render(label))
+			} else {
+				tabs = append(tabs, clientTabInactive.Render(label))
+			}
 		}
 	}
 	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Center,
@@ -718,7 +723,11 @@ func (m Model) View() string {
 
 // listHelp shows only the shortcuts available for the current row.
 func (m Model) listHelp() string {
-	parts := []string{fmt.Sprintf("1-%d client", len(m.cfg.Clients)), "tab view", "j/k move"}
+	var parts []string
+	if len(m.cfg.Clients) > 1 && !m.cfg.HideClients {
+		parts = append(parts, fmt.Sprintf("1-%d client", len(m.cfg.Clients)))
+	}
+	parts = append(parts, "tab view", "j/k move")
 	rows := m.rows()
 	if len(rows) > 0 {
 		cur := m.cursor[m.key()]

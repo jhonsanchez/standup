@@ -71,6 +71,10 @@ clients:
   (appended as the last argument if the placeholder is absent).
 - **`link_pattern`**: regex for extracting issue keys from PR titles and
   branch names; the default matches standard Jira keys (`ABC-123`).
+- **Client privacy**: `hide_clients: true` renders only the active client in
+  the header — other client names never appear on screen (number keys still
+  switch). For full isolation, `standup <client>` loads only that client
+  into the session. Both are handy when screen-sharing with one client.
 - **`refresh`**: only the visible client is polled, never while a fetch is in
   flight; the list stays on screen during refreshes. Values under 10s are
   clamped (GitHub throttles rapid repeated searches).

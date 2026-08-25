@@ -27,6 +27,11 @@ type Config struct {
 	// branch names for issue⇄PR linking. Default: Jira-style [A-Z][A-Z0-9]+-\d+.
 	LinkPattern string   `yaml:"link_pattern,omitempty"`
 	Commands    Commands `yaml:"commands,omitempty"`
+	// HideClients shows only the active client in the header — other client
+	// names never render on screen (switch with number keys as usual).
+	// Useful when screen-sharing with one client. For full isolation run
+	// `standup <client>`, which loads only that client.
+	HideClients bool `yaml:"hide_clients,omitempty"`
 }
 
 // Commands configures the external tools launched from the detail view.
