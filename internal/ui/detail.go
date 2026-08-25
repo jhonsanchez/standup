@@ -27,6 +27,9 @@ type detailState struct {
 	err      string
 	scroll   int
 
+	// Chat view (pushed with A).
+	isChat bool
+
 	// GHA checks window (pushed with C).
 	isChecks   bool
 	checksSHA  string
@@ -272,6 +275,10 @@ func (m Model) updateDetail(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// Chat view: all typing goes to the input.
+		if t := m.top(); t != nil && t.isChat {
+			return m.updateChat(msg)
+		}
 		// PR/issue picker overlay (multiple jump targets).
 		if len(m.pick) > 0 {
 			s := msg.String()
@@ -394,6 +401,8 @@ func (m Model) updateDetail(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.pick = targets
 				return m, nil
 			}
+		case m.km.Is(msg, "chat"):
+			return m.openChat(m.top().item)
 		case m.km.Is(msg, "checks"):
 			t := m.top()
 			pr := t.item
@@ -522,6 +531,9 @@ func firstLine(b []byte) string {
 
 func (m Model) viewDetail() string {
 	t := m.top()
+	if t.isChat {
+		return m.viewChat(t)
+	}
 	it := t.item
 	w := m.width - 4
 	if w < 40 {

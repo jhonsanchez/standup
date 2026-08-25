@@ -106,6 +106,15 @@ func defaultKeymap() *keymap {
 		{id: "jump", primary: "p", group: grpGit, short: "p link",
 			desc: "Jump between a Jira issue and its linked PR(s)", ctx: ctxDetail,
 			when: func(m *Model) bool { return len(m.jumpTargets()) > 0 }},
+		{id: "chat", primary: "A", group: grpGit,
+			desc: "Chat with Claude about this item — it can answer, comment on Jira, or fix code", ctx: ctxList | ctxDetail,
+			when: func(m *Model) bool {
+				if t := m.top(); t != nil {
+					return !t.isChat
+				}
+				_, _, ok := m.cursorInfo()
+				return ok
+			}},
 		{id: "checks", primary: "C", group: grpGit,
 			desc: "Open the GHA checks window for the PR's commit (post-merge if merged)", ctx: ctxList | ctxDetail,
 			when: func(m *Model) bool {

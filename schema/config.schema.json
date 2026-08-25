@@ -60,6 +60,17 @@
             "gitui",
             "tig"
           ]
+        },
+        "chat_permission_mode": {
+          "type": "string",
+          "enum": [
+            "acceptEdits",
+            "plan",
+            "dontAsk",
+            "auto",
+            "bypassPermissions"
+          ],
+          "description": "claude --permission-mode for the in-app chat (A key). Default acceptEdits: file edits auto-approved, other actions follow your Claude settings allowlists. Use plan for read-only chat."
         }
       }
     },

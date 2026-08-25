@@ -50,6 +50,19 @@ type Commands struct {
 	Agent string `yaml:"agent,omitempty"`
 	// GitUI is the git TUI for the `L` key (default "lazygit").
 	GitUI string `yaml:"git_ui,omitempty"`
+	// ChatPermissionMode is claude's --permission-mode for the in-app chat
+	// (default "acceptEdits"; use "plan" for read-only chat).
+	ChatPermissionMode string `yaml:"chat_permission_mode,omitempty"`
+}
+
+// ChatPermissionMode is the --permission-mode for the in-app chat's headless
+// claude runs. Default acceptEdits (edits auto-approved; other actions follow
+// your Claude settings allowlists).
+func (c *Config) ChatPermissionMode() string {
+	if c.Commands.ChatPermissionMode != "" {
+		return c.Commands.ChatPermissionMode
+	}
+	return "acceptEdits"
 }
 
 // AutoUpdateEnabled reports whether background self-update is on (default).

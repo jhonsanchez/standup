@@ -16,6 +16,7 @@ import (
 	"github.com/atotto/clipboard"
 	"github.com/aymanbagabas/go-osc52/v2"
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -103,6 +104,8 @@ type Model struct {
 	clientPick    bool        // client-switcher overlay (list view)
 	showHelp      bool        // `?` shortcuts menu
 	km            *keymap
+	chats         map[string]*chatSession
+	chatInput     textarea.Model
 }
 
 func New(cfg *config.Config, version string) Model {
@@ -118,6 +121,10 @@ func New(cfg *config.Config, version string) Model {
 			issueKeyRe = re
 		}
 	}
+	ta := textarea.New()
+	ta.Placeholder = "ask, or tell claude what to do…"
+	ta.SetHeight(2)
+	ta.ShowLineNumbers = false
 	km := defaultKeymap()
 	warns := km.applyOverrides(cfg.Keys)
 	m := Model{
@@ -130,6 +137,8 @@ func New(cfg *config.Config, version string) Model {
 		filter:    fi,
 		km:        km,
 		version:   version,
+		chats:     map[string]*chatSession{},
+		chatInput: ta,
 	}
 	if len(warns) > 0 {
 		m.status = "⚠ " + strings.Join(warns, " · ")
@@ -489,6 +498,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case configEditedMsg:
 		return m.reloadConfig(msg)
 
+	case chatEvMsg:
+		return m.applyChatEvent(msg)
+
 	case prDetailMsg, jiraDetailMsg, checksMsg, checksTickMsg, checkoutMsg, execDoneMsg:
 		return m.updateDetail(msg)
 
@@ -711,6 +723,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			pr = *lp
 		}
 		return m.openChecks(pr)
+
+	case m.km.Is(msg, "chat"):
+		it, _, ok := m.cursorInfo()
+		if !ok {
+			return m, nil
+		}
+		return m.openChat(*it)
 
 	case m.km.Is(msg, "git-view"):
 		// Git view: jump straight to the linked PR's detail.
