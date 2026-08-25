@@ -40,9 +40,37 @@ type Config struct {
 	// BranchTemplate names branches created by the b start-work flow;
 	// {key} is the issue key. Default "{key}" (e.g. FALCON-3149).
 	BranchTemplate string `yaml:"branch_template,omitempty"`
+	// Alerts tunes the policy-alert thresholds (days). 0 → defaults
+	// (approved_days: 3, stale_review_days: 5); negative disables one.
+	Alerts Alerts `yaml:"alerts,omitempty"`
 	// Keys remaps shortcuts by action id, e.g. {git-view: "G", filter: "s"}.
 	// Press ? in the app to see actions; ids are documented in the README.
 	Keys map[string]string `yaml:"keys,omitempty"`
+}
+
+// Alerts configures policy-alert thresholds.
+type Alerts struct {
+	ApprovedDays    int `yaml:"approved_days,omitempty"`
+	StaleReviewDays int `yaml:"stale_review_days,omitempty"`
+}
+
+// AlertDays returns (approved-but-unmerged, stale-review) thresholds in
+// days; negative config values disable an alert (returned as 0).
+func (c *Config) AlertDays() (approved, stale int) {
+	approved, stale = c.Alerts.ApprovedDays, c.Alerts.StaleReviewDays
+	if approved == 0 {
+		approved = 3
+	}
+	if stale == 0 {
+		stale = 5
+	}
+	if approved < 0 {
+		approved = 0
+	}
+	if stale < 0 {
+		stale = 0
+	}
+	return approved, stale
 }
 
 // Commands configures the external tools launched from the detail view.

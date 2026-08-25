@@ -201,6 +201,21 @@
         "{key}",
         "feature/{key}"
       ]
+    },
+    "alerts": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Policy-alert thresholds in days. 0/omitted → defaults; negative disables that alert.",
+      "properties": {
+        "approved_days": {
+          "type": "integer",
+          "description": "Flag PRs approved but unmerged for more than N days (default 3; negative disables)."
+        },
+        "stale_review_days": {
+          "type": "integer",
+          "description": "Flag open non-draft PRs with no activity for more than N days (default 5; negative disables)."
+        }
+      }
     }
   }
 }

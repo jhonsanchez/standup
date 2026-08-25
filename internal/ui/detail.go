@@ -589,6 +589,9 @@ func (m Model) viewDetail() string {
 			meta += "  " + subtaskStyle.Render(it.Priority)
 		}
 		push(meta)
+		for _, a := range m.issueAlerts(it) {
+			push(a.icon + " " + alertOrange.Render(a.reason))
+		}
 	case data.KindPullRequest:
 		meta := bucketDot(it.Bucket) + " " + it.Bucket.Label() +
 			"  " + ciIcon(it.CIState) + conflictIcon(it.Mergeable) +
@@ -600,6 +603,9 @@ func (m Model) viewDetail() string {
 			meta += "  " + subtaskStyle.Render("@"+it.Author)
 		}
 		push(meta)
+		for _, a := range m.prAlerts(it) {
+			push(a.icon + " " + alertOrange.Render(a.reason))
+		}
 	}
 	if repo, branch, ok := m.detailTarget(); ok && branch != "" {
 		dir, exists := m.cfg.Clients[m.client].RepoDir(repo)

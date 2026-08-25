@@ -69,7 +69,11 @@ func (m Model) viewHelp() string {
 		"  " + iconPass + " " + iconFail + " " + iconPending + " " + iconNone + " " + helpArrowStyle.Render("→") + " CI passing / failing / running / none",
 		"  " + iconClash + " " + helpArrowStyle.Render("→") + " merge conflicts",
 		"  [1/3] " + helpArrowStyle.Render("→") + " subtasks done/total (→ expands; also lists multiple linked PRs)",
-		"  " + alertCommentIcon() + " " + helpArrowStyle.Render("→") + " all PRs merged but no Jira comment — add a wrap-up comment",
+		"  " + alertCommentIcon() + " " + helpArrowStyle.Render("→") + " all PRs merged but no Jira comment",
+		"  " + alertStatusIcon() + " " + helpArrowStyle.Render("→") + " all PRs merged but issue status not updated",
+		"  " + alertDoneOpenIcon() + " " + helpArrowStyle.Render("→") + " issue Done but PRs still open",
+		"  " + alertApprovedIcon() + " " + helpArrowStyle.Render("→") + " PR approved but unmerged too long",
+		"  " + alertStaleIcon() + " " + helpArrowStyle.Render("→") + " PR without activity too long",
 		"",
 	}
 	blocks = append(blocks, legend)

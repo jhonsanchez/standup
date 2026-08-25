@@ -27,3 +27,10 @@ func InjectTestMerged(model tea.Model, merged []data.Item) tea.Model {
 	m.states[m.client].merged = merged
 	return m
 }
+
+// InjectTestPRs seeds the active client's open-PR list (test helper).
+func InjectTestPRs(model tea.Model, prs []data.Item) tea.Model {
+	m := model.(Model)
+	m.states[m.client].prs = prs
+	return m
+}

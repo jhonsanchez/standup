@@ -1167,9 +1167,7 @@ func (m Model) renderItem(it data.Item) string {
 		} else if mark := m.branchMarker(it.Key); mark != "" {
 			parts = append(parts, mark)
 		}
-		if m.needsWrapComment(it) {
-			parts = append(parts, alertCommentIcon())
-		}
+		parts = append(parts, alertIcons(m.issueAlerts(it))...)
 		if len(it.Subtasks) > 0 {
 			done := 0
 			for _, s := range it.Subtasks {
@@ -1189,6 +1187,7 @@ func (m Model) renderItem(it data.Item) string {
 		if rl := reviewLabel(it.ReviewDecision); rl != "" {
 			parts = append(parts, rl)
 		}
+		parts = append(parts, alertIcons(m.prAlerts(it))...)
 	case data.KindGHIssue:
 		parts = append(parts, " ", badgeOpen.Render("open"), hyperlink(it.URL, keyStyle.Render(it.Key)))
 	}
@@ -1375,6 +1374,9 @@ func (m Model) renderPRChild(issueKey string, idx int) string {
 		if rl := reviewLabel(p.ReviewDecision); rl != "" {
 			line += " " + rl
 		}
+		for _, ic := range alertIcons(m.prAlerts(p)) {
+			line += " " + ic
+		}
 		line += " " + diffStat(p.Additions, p.Deletions)
 	} else {
 		line += subtaskStyle.Render(" merged " + relAge(p.MergedAt) + " ago")
@@ -1397,29 +1399,6 @@ func (m Model) issueByKey(key string) *data.Item {
 	return nil
 }
 
-// needsWrapComment flags finished-but-undocumented work: every linked PR is
-// merged, yet the issue has no Jira comment. Team policy: resolved work gets
-// a wrap-up comment.
-func (m Model) needsWrapComment(it data.Item) bool {
-	if it.Kind != data.KindJiraIssue || it.CommentCount > 0 {
-		return false
-	}
-	prs := m.linkedPRs(it.Key)
-	if len(prs) == 0 {
-		return false
-	}
-	for _, p := range prs {
-		if !p.Merged {
-			return false
-		}
-	}
-	return true
-}
-
-func alertCommentIcon() string {
-	return lipgloss.NewStyle().Foreground(colOrange).Render(commentGlyph + "!")
-}
-
 func (m Model) renderSubtask(s data.Subtask) string {
 	line := fmt.Sprintf("    └ %s %s",
 		statusBadge(s.StatusCategory, s.Status), hyperlink(s.URL, keyStyle.Render(s.Key)))
@@ -1428,8 +1407,10 @@ func (m Model) renderSubtask(s data.Subtask) string {
 	} else if mark := m.branchMarker(s.Key); mark != "" {
 		line += " " + mark
 	}
-	if sub := m.issueByKey(s.Key); sub != nil && m.needsWrapComment(*sub) {
-		line += " " + alertCommentIcon()
+	if sub := m.issueByKey(s.Key); sub != nil {
+		for _, ic := range alertIcons(m.issueAlerts(*sub)) {
+			line += " " + ic
+		}
 	}
 	return line + " " + s.Summary
 }
