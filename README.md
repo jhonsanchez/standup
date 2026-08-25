@@ -7,23 +7,47 @@ issue⇄PR⇄branch cross-linking and one-key jumps into your local repos.
 
 ## Install
 
+**macOS / Linux (Homebrew):**
+
 ```sh
-brew install jhonsanchez/tap/standup      # macOS & Linux
-# or
-go install github.com/jhonsanchez/standup@latest
+brew install jhonsanchez/tap/standup
 ```
 
-Or grab a prebuilt binary from [Releases](https://github.com/jhonsanchez/standup/releases)
-(macOS / Linux / Windows, amd64 + arm64).
+**Linux (direct binary, e.g. Ubuntu):**
+
+```sh
+curl -sL https://github.com/jhonsanchez/standup/releases/latest/download/standup_$(curl -s https://api.github.com/repos/jhonsanchez/standup/releases/latest | grep -oP '"tag_name": "v\K[^"]+')_linux_amd64.tar.gz | tar xz standup
+sudo install standup /usr/local/bin/     # use _arm64 on ARM machines
+```
+
+**Windows:** download the `windows_amd64.zip` (or `arm64`) from
+[Releases](https://github.com/jhonsanchez/standup/releases), unzip, and put
+`standup.exe` on your `PATH`. Use Windows Terminal for correct rendering.
+
+**Any platform with Go:**
+
+```sh
+go install github.com/jhonsanchez/standup@latest    # lands in ~/go/bin
+```
 
 **Update**: `standup upgrade` — detects the install method and updates in
 place (`brew upgrade standup` for brew installs, `go install @latest` for Go
-installs, direct binary swap otherwise).
+installs, direct binary swap otherwise; on Windows it points you to the
+releases page).
 
-**Font**: the markers use Nerd Font glyphs (git branch ``, octocat ``).
-Install **JetBrainsMono Nerd Font** (or any [Nerd Font](https://www.nerdfonts.com))
-and select it in your terminal — standup warns at startup if none is detected.
-No patched font? Set `icons: ascii` in the config.
+### Dependencies
+
+The binary is self-contained — everything below is optional and only lights
+up a specific feature. `standup doctor` reports what's missing.
+
+| Dependency | Used for | Install |
+| --- | --- | --- |
+| **Nerd Font** (JetBrainsMono recommended) | marker glyphs `` `` | `brew install --cask font-jetbrains-mono-nerd-font` · Ubuntu: unzip from [nerdfonts.com](https://www.nerdfonts.com) into `~/.local/share/fonts` + `fc-cache -f` · or set `icons: ascii` |
+| `git` | checkout action, branch scanning | `apt install git` / preinstalled on macOS |
+| `gh` CLI | zero-config GitHub auth (`gh auth login`) | `brew install gh` / `apt install gh` — or set `token_env` instead |
+| `lazygit` | `L` key (git TUI) | `brew install lazygit` · Ubuntu: [releases](https://github.com/jesseduffield/lazygit/releases) — or set `commands.git_ui` |
+| `claude` or `copilot` | `a` key (AI agent) | [claude.com/claude-code](https://claude.com/claude-code) / [copilot-cli](https://github.com/github/copilot-cli) — pick via `commands.agent` |
+| `xclip`, `xdg-utils` (Linux only) | `y/Y` clipboard copy · `o` open in browser | `apt install xclip xdg-utils` (macOS/Windows need nothing) |
 
 ## Configure
 
