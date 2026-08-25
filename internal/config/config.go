@@ -266,7 +266,8 @@ func expandEnv(b []byte) []byte {
 	})
 }
 
-const starterConfig = `# standup config
+const starterConfig = `# yaml-language-server: $schema=https://raw.githubusercontent.com/jhonsanchez/standup/main/schema/config.schema.json
+# standup config
 # Each client gets its own tab. jira and github sections are both optional.
 # ${VAR} references anywhere in this file are expanded from the environment.
 #

@@ -329,6 +329,15 @@ func FetchPRDetail(ctx context.Context, g *config.GitHub, repo string, number in
 	return d, nil
 }
 
+// Ping verifies credentials and returns the authenticated login.
+func Ping(ctx context.Context, g *config.GitHub) (string, error) {
+	token, err := g.ResolveToken()
+	if err != nil {
+		return "", err
+	}
+	return viewerLogin(ctx, g, token)
+}
+
 func viewerLogin(ctx context.Context, g *config.GitHub, token string) (string, error) {
 	var resp struct {
 		Viewer struct {

@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/jhonsanchez/standup/main/schema/config.schema.json",
+  "title": "standup configuration",
+  "description": "Configuration for standup — Jira + GitHub sprint dashboard. ${VAR} references are expanded from the environment.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["clients"],
+  "properties": {
+    "refresh": {
+      "type": "string",
+      "description": "Background auto-refresh interval for the active client, as a Go duration (\"30s\", \"2m\") or \"off\". Default 30s; values under 10s are clamped.",
+      "examples": ["30s", "2m", "off"]
+    },
+    "refresh_minutes": {
+      "type": "integer",
+      "description": "Older integer form of refresh (minutes); negative disables. Prefer `refresh`."
+    },
+    "icons": {
+      "type": "string",
+      "enum": ["nerd", "ascii"],
+      "description": "Marker glyph set. \"nerd\" (default) needs a Nerd Font such as JetBrainsMono Nerd Font; \"ascii\" uses plain-unicode fallbacks."
+    },
+    "link_pattern": {
+      "type": "string",
+      "format": "regex",
+      "description": "Regex extracting issue keys from PR titles and branch names for issue⇄PR linking. Default: [A-Z][A-Z0-9]+-\\d+"
+    },
+    "hide_clients": {
+      "type": "boolean",
+      "description": "Show only the active client in the header; other client names never render (switch with number keys or the `w` picker). For full isolation run `standup <client>`."
+    },
+    "commands": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "agent": {
+          "type": "string",
+          "description": "AI coding agent for the `a` key: \"claude\" (default), \"copilot\", or any command line; {prompt} is replaced with the issue context (appended if absent).",
+          "examples": ["claude", "copilot", "aider --message {prompt}"]
+        },
+        "git_ui": {
+          "type": "string",
+          "description": "Git TUI for the `L` key. Default: lazygit.",
+          "examples": ["lazygit", "gitui", "tig"]
+        }
+      }
+    },
+    "clients": {
+      "type": "array",
+      "minItems": 1,
+      "description": "One entry per client/company tab.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Tab name; also the default local clones folder (~/projects/<name>) and the argument for `standup <name>`."
+          },
+          "projects_dir": {
+            "type": "string",
+            "description": "Directory holding this client's local git clones. Default: ~/projects/<name>. Used by checkout/lazygit/terminal/agent actions and branch markers."
+          },
+          "jira": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["base_url"],
+            "properties": {
+              "base_url": {
+                "type": "string",
+                "description": "Jira site URL, e.g. https://yoursite.atlassian.net or a self-hosted https://jira.example.com."
+              },
+              "flavor": {
+                "type": "string",
+                "enum": ["cloud", "datacenter", "server"],
+                "description": "\"cloud\" (email + API token, REST v3) or \"datacenter\"/\"server\" (PAT bearer auth, REST v2). Defaults to cloud when email is set, datacenter otherwise."
+              },
+              "email": {
+                "type": "string",
+                "description": "Account email (Jira Cloud basic auth). Omit for Data Center PAT auth."
+              },
+              "token": {
+                "type": "string",
+                "description": "Literal API token / PAT. Prefer token_env."
+              },
+              "token_env": {
+                "type": "string",
+                "description": "Name of the environment variable holding the API token / PAT."
+              },
+              "projects": {
+                "type": "string",
+                "description": "Comma-separated project keys to limit the query to, e.g. \"PROJ,OTHER\"."
+              },
+              "jql": {
+                "type": "string",
+                "description": "Full replacement for the default query (assignee = currentUser() AND sprint in openSprints()). Use for Kanban or custom boards."
+              }
+            }
+          },
+          "github": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "host": {
+                "type": "string",
+                "description": "GitHub host. Default github.com; set for GitHub Enterprise."
+              },
+              "token": {
+                "type": "string",
+                "description": "Literal token. Prefer token_env or a gh CLI login."
+              },
+              "token_env": {
+                "type": "string",
+                "description": "Name of the environment variable holding the token. When absent, the token comes from `gh auth token`."
+              },
+              "orgs": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Limit searches to these organizations."
+              },
+              "repos": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Limit searches to these owner/repo entries."
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -117,7 +117,7 @@ func New(cfg *config.Config) Model {
 		spin:      sp,
 		filter:    fi,
 	}
-	if cfg.Icons != "ascii" && !nerdFontDetected() {
+	if cfg.Icons != "ascii" && !NerdFontDetected() {
 		m.status = "⚠ no Nerd Font detected — icons may look broken; install JetBrainsMono Nerd Font or set `icons: ascii`"
 	}
 	return m
@@ -126,7 +126,7 @@ func New(cfg *config.Config) Model {
 // nerdFontDetected makes a best-effort check for an installed Nerd Font.
 // Terminals don't expose their font, so this only inspects the system's
 // installed font files.
-func nerdFontDetected() bool {
+func NerdFontDetected() bool {
 	if runtime.GOOS == "darwin" {
 		home, _ := os.UserHomeDir()
 		for _, dir := range []string{filepath.Join(home, "Library", "Fonts"), "/Library/Fonts"} {

@@ -42,6 +42,15 @@ brews:
     license: MIT
     install: bin.install "standup"
     test: system "#{bin}/standup --version"
+    caveats: |
+      Config lives at ~/.config/standup/config.yaml — a commented starter
+      file is created the first time you run standup.
+
+      Icons need a Nerd Font (e.g. JetBrainsMono Nerd Font):
+        brew install --cask font-jetbrains-mono-nerd-font
+      …or set `icons: ascii` in the config.
+
+      Verify your setup any time with:  standup doctor
 
 release:
   footer: |

@@ -31,6 +31,13 @@ Config lives at `~/.config/standup/config.yaml` (override with
 `$STANDUP_CONFIG`). A commented starter file is created on first run.
 `${VAR}` references are expanded from the environment.
 
+Handy commands: `standup --help` · `standup config` (path + effective
+settings, tokens redacted) · `standup doctor` (checks credentials,
+endpoints, tools, and font). A [JSON Schema](schema/config.schema.json)
+ships in the repo — the starter file includes a `yaml-language-server`
+modeline, so editors with the YAML extension autocomplete and validate
+every key.
+
 ```yaml
 refresh: 30s            # auto-refresh of the active tab; "off" to disable
 icons: nerd             # or: ascii

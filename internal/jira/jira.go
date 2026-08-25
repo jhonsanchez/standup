@@ -181,6 +181,24 @@ func doGet(ctx context.Context, j *config.Jira, token, u string) ([]byte, error)
 	return body, nil
 }
 
+// Ping verifies credentials by fetching the authenticated user.
+func Ping(ctx context.Context, j *config.Jira) error {
+	token, err := j.ResolveToken()
+	if err != nil {
+		return err
+	}
+	base := strings.TrimRight(j.BaseURL, "/")
+	if base == "" {
+		return fmt.Errorf("base_url is empty (unset env var?)")
+	}
+	api := "/rest/api/3/myself"
+	if j.IsDataCenter() {
+		api = "/rest/api/2/myself"
+	}
+	_, err = doGet(ctx, j, token, base+api)
+	return err
+}
+
 // FetchIssue returns one issue (used for subtask detail).
 func FetchIssue(ctx context.Context, j *config.Jira, key string) (data.Item, error) {
 	token, err := j.ResolveToken()
