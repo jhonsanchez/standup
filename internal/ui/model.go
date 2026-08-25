@@ -443,7 +443,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case configEditedMsg:
 		return m.reloadConfig(msg)
 
-	case prDetailMsg, jiraDetailMsg, checkoutMsg, execDoneMsg:
+	case prDetailMsg, jiraDetailMsg, checksMsg, checksTickMsg, checkoutMsg, execDoneMsg:
 		return m.updateDetail(msg)
 
 	case tea.KeyMsg:
