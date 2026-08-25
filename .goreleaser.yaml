@@ -30,7 +30,20 @@ changelog:
       - "^docs:"
       - "^chore:"
 
+brews:
+  - name: standup
+    repository:
+      owner: jhonsanchez
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/jhonsanchez/standup
+    description: Terminal dashboard for Jira sprint issues and GitHub PRs across clients
+    license: MIT
+    install: bin.install "standup"
+    test: system "#{bin}/standup --version"
+
 release:
   footer: |
     ---
-    Install with Go: `go install github.com/jhonsanchez/standup@{{.Tag}}`
+    Install: `brew install jhonsanchez/tap/standup` · `go install github.com/jhonsanchez/standup@{{.Tag}}`

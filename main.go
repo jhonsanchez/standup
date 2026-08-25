@@ -9,6 +9,7 @@ import (
 
 	"github.com/jhonsanchez/standup/internal/config"
 	"github.com/jhonsanchez/standup/internal/ui"
+	"github.com/jhonsanchez/standup/internal/upgrade"
 )
 
 // version is stamped by GoReleaser at release time.
@@ -17,6 +18,13 @@ var version = "dev"
 func main() {
 	if len(os.Args) > 1 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
 		fmt.Println("standup", version)
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "upgrade" {
+		if err := upgrade.Run(version); err != nil {
+			fmt.Fprintln(os.Stderr, "standup: upgrade failed:", err)
+			os.Exit(1)
+		}
 		return
 	}
 	cfg, err := config.Load()

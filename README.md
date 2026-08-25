@@ -8,11 +8,17 @@ issue⇄PR⇄branch cross-linking and one-key jumps into your local repos.
 ## Install
 
 ```sh
+brew install jhonsanchez/tap/standup      # macOS & Linux
+# or
 go install github.com/jhonsanchez/standup@latest
 ```
 
 Or grab a prebuilt binary from [Releases](https://github.com/jhonsanchez/standup/releases)
 (macOS / Linux / Windows, amd64 + arm64).
+
+**Update**: `standup upgrade` — detects the install method and updates in
+place (`brew upgrade standup` for brew installs, `go install @latest` for Go
+installs, direct binary swap otherwise).
 
 **Font**: the markers use Nerd Font glyphs (git branch ``, octocat ``).
 Install **JetBrainsMono Nerd Font** (or any [Nerd Font](https://www.nerdfonts.com))
