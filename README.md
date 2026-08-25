@@ -181,3 +181,14 @@ Every push to `main` publishes a release: the workflow bumps the patch
 version automatically (`x.y.z`), or bump minor/major by including `[minor]`
 or `[major]` in the commit message. Binaries are built with GoReleaser for
 macOS, Linux, and Windows.
+
+## Contributing
+
+Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for the dev
+setup, project layout, and how releases work. Bug reports: open an
+[issue](https://github.com/jhonsanchez/standup/issues) with your OS,
+`standup --version`, and `standup doctor` output.
+
+## License
+
+[MIT](LICENSE)
