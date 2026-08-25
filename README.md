@@ -159,8 +159,10 @@ permission allowlists — no special commands. Tool activity streams as `⚒`
 lines, each issue keeps its own resumable session, `enter` sends, `esc`
 cancels a running turn or steps back. `commands.chat_permission_mode`
 (default `dontAsk`) governs what it may do: a baseline allowlist
-(read/search/edit/todo/`git`/`gh`) plus per-client `chat_allowed_tools`
-(e.g. Jira MCP tools) are pre-approved; anything else is denied instantly
+(read/search/edit/todo/`git`/`gh`), every MCP server the repo itself
+declares in `.mcp.json` (auto-loaded and auto-allowed — a repo declaring
+a server is opting into it), plus per-client `chat_allowed_tools` for
+extras; anything else is denied instantly
 and shown in red (`✗ tool — add to chat_allowed_tools`) — headless runs
 cannot show permission prompts, so fail-fast beats silent stalls. Mouse wheel scrolls the chat, detail views, and the
 list.

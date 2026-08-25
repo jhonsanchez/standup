@@ -186,7 +186,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Tools pre-approved for the headless chat via --allowedTools (headless runs cannot show permission prompts). E.g. mcp__jira__add_comment, Bash(gh pr view *)."
+            "description": "Extra tools pre-approved for the headless chat via --allowedTools, beyond the baseline and the repo's own .mcp.json servers (which are auto-allowed). E.g. Bash(npm *), or MCP tools from user-scope servers."
           }
         }
       }

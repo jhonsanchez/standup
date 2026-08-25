@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -43,14 +44,23 @@ func Send(dir, sessionID, systemAppend, permMode, prompt string, extraEnv, allow
 	if systemAppend != "" {
 		args = append(args, "--append-system-prompt", systemAppend)
 	}
-	for _, t := range allowedTools {
-		args = append(args, "--allowedTools", t)
-	}
 	// Project-scoped MCP servers (.mcp.json) need interactive approval,
-	// which headless runs can't give — passing the file explicitly loads
-	// them without the prompt.
+	// which headless runs can't give — pass the file explicitly to load
+	// them, and auto-allow each declared server (mcp__<name> covers all of
+	// its tools): a repo declaring a server is opting into it.
 	if mcp := filepath.Join(dir, ".mcp.json"); fileExists(mcp) {
 		args = append(args, "--mcp-config", mcp)
+		for _, name := range mcpServerNames(mcp) {
+			allowedTools = append(allowedTools, "mcp__"+name)
+		}
+	}
+	seen := map[string]bool{}
+	for _, t := range allowedTools {
+		if seen[t] {
+			continue
+		}
+		seen[t] = true
+		args = append(args, "--allowedTools", t)
 	}
 	if sessionID != "" {
 		args = append(args, "--resume", sessionID)
@@ -240,4 +250,24 @@ func debugLog(line string) {
 	}
 	defer f.Close()
 	fmt.Fprintf(f, "%s %s\n", time.Now().Format("15:04:05"), line)
+}
+
+// mcpServerNames lists the server names declared in a .mcp.json file.
+func mcpServerNames(path string) []string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var doc struct {
+		MCPServers map[string]json.RawMessage `json:"mcpServers"`
+	}
+	if err := json.Unmarshal(b, &doc); err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(doc.MCPServers))
+	for name := range doc.MCPServers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
