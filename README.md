@@ -138,7 +138,9 @@ state, branch markers, CI icons). The pinned
 footer stays minimal: the top hints for the current row plus `? help`.
 
 Highlights: `1-9`/`w` clients · `tab` views · `enter` detail · `→`/`←`
-expand/collapse · `g` git view · `y`/`Y` copy links · `o` browser ·
+expand/collapse · `g` git view · `b` start work (create+push a mapping
+branch for an unlinked issue, repo suggested from the title) · `C` checks ·
+`A` chat · `y`/`Y` copy links · `o` browser ·
 `r` refresh · `/` filter · `e` edit config · vim scrolling (`j/k`,
 `ctrl+d/u/f/b`, `gg`/`G`) — and in detail views: `p` jump issue⇄PR,
 `c` checkout, `L` lazygit, `t` terminal, `a` AI agent, `esc` back.
@@ -169,7 +171,7 @@ keys:
 
 Action ids: `down up top bottom` · `view-toggle view-issues view-prs
 client-picker` · `detail detail-alt expand collapse toggle groups-all` ·
-`git-view jump checkout git-ui terminal agent chat checks` · `copy copy-linked open` ·
+`git-view jump checkout git-ui terminal agent chat checks start-branch` · `copy copy-linked open` ·
 `refresh filter edit-config back to-list help quit`. Unknown ids and key
 conflicts are reported at startup; fixed keys (digits, page scrolling) are
 not remappable. Arrow keys, `ctrl+c`, and other aliases always keep working.
