@@ -10,17 +10,19 @@ issue⇄PR⇄branch cross-linking and one-key jumps into your local repos.
 ### Linux
 
 - **Homebrew** (Linuxbrew): `brew install jhonsanchez/tap/standup`
-- **curl** — latest release, auto-detected version (use `arm64` on ARM):
+- **install script** — detects arch, always fetches the latest release:
   ```sh
-  curl -sL https://github.com/jhonsanchez/standup/releases/latest/download/standup_$(curl -s https://api.github.com/repos/jhonsanchez/standup/releases/latest | grep -oP '"tag_name": "v\K[^"]+')_linux_amd64.tar.gz | tar xz standup
-  sudo install standup /usr/local/bin/
+  curl -fsSL https://raw.githubusercontent.com/jhonsanchez/standup/main/install.sh | sh
   ```
 - **Go**: `go install github.com/jhonsanchez/standup@latest` (lands in `~/go/bin`)
 
 ### macOS
 
 - **Homebrew**: `brew install jhonsanchez/tap/standup`
-- **curl**: as above with `darwin_arm64` (Apple Silicon) or `darwin_amd64` (Intel)
+- **install script** (detects Apple Silicon vs Intel):
+  ```sh
+  curl -fsSL https://raw.githubusercontent.com/jhonsanchez/standup/main/install.sh | sh
+  ```
 - **Go**: `go install github.com/jhonsanchez/standup@latest`
 
 ### Windows
