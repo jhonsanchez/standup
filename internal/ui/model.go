@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -91,6 +92,8 @@ type Model struct {
 	height    int
 	status    string
 
+	version     string // running version, for the update notice
+	updateAvail string // newer release tag, when detected
 	detailStack []detailState
 	pick        []data.Item // jump-target picker overlay
 	pendingG    bool        // first g of a gg sequence (detail view)
@@ -99,7 +102,7 @@ type Model struct {
 	km          *keymap
 }
 
-func New(cfg *config.Config) Model {
+func New(cfg *config.Config, version string) Model {
 	sp := spinner.New(spinner.WithSpinner(spinner.MiniDot))
 	sp.Style = lipgloss.NewStyle().Foreground(colPurple)
 	fi := textinput.New()
@@ -123,6 +126,7 @@ func New(cfg *config.Config) Model {
 		spin:      sp,
 		filter:    fi,
 		km:        km,
+		version:   version,
 	}
 	if len(warns) > 0 {
 		m.status = "⚠ " + strings.Join(warns, " · ")
@@ -155,7 +159,37 @@ func NerdFontDetected() bool {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.spin.Tick, m.fetch(m.client), m.autoTick())
+	return tea.Batch(m.spin.Tick, m.fetch(m.client), m.autoTick(), m.checkForUpdate())
+}
+
+type newVersionMsg struct {
+	tag string
+}
+
+// checkForUpdate resolves the latest release tag once at startup (via the
+// release redirect — no API, no rate limits) and surfaces a footer notice.
+func (m Model) checkForUpdate() tea.Cmd {
+	if m.version == "" || m.version == "dev" {
+		return nil
+	}
+	return func() tea.Msg {
+		client := &http.Client{
+			Timeout: 10 * time.Second,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
+		resp, err := client.Head("https://github.com/jhonsanchez/standup/releases/latest")
+		if err != nil {
+			return newVersionMsg{}
+		}
+		resp.Body.Close()
+		loc := resp.Header.Get("Location")
+		if i := strings.LastIndex(loc, "/tag/"); i >= 0 {
+			return newVersionMsg{tag: loc[i+len("/tag/"):]}
+		}
+		return newVersionMsg{}
+	}
 }
 
 type autoTickMsg struct{}
@@ -385,6 +419,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		st.issues = msg.issues
 		st.branches = msg.branches
 		st.errs = msg.errs
+		return m, nil
+
+	case newVersionMsg:
+		if msg.tag != "" && msg.tag != "v"+m.version {
+			m.updateAvail = msg.tag
+		}
 		return m, nil
 
 	case autoTickMsg:
@@ -810,6 +850,10 @@ func (m Model) View() string {
 
 	// Pinned footer: errors + status + help.
 	var fparts []string
+	if m.updateAvail != "" {
+		fparts = append(fparts, helpStyle.MaxWidth(m.width).Render(
+			"⬆ "+m.updateAvail+" available — run `standup upgrade` (or brew upgrade standup)"))
+	}
 	if m.clientPick {
 		fparts = append(fparts, headerLabel.Render("Switch client:"))
 		for i, c := range m.cfg.Clients {

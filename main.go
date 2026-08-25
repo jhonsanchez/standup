@@ -62,7 +62,7 @@ func main() {
 		}
 	}
 
-	p := tea.NewProgram(ui.New(cfg), tea.WithAltScreen())
+	p := tea.NewProgram(ui.New(cfg, version), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "standup:", err)
 		os.Exit(1)

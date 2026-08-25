@@ -40,7 +40,10 @@ trap 'rm -rf "$tmp"' EXIT
 echo "downloading standup $tag ($os/$arch)…"
 curl -fsSL "$url" | tar xz -C "$tmp" standup
 
-dir="${STANDUP_INSTALL_DIR:-/usr/local/bin}"
+# Default to a user-owned directory so future `standup upgrade` runs never
+# need sudo (set STANDUP_INSTALL_DIR=/usr/local/bin for a system-wide install).
+dir="${STANDUP_INSTALL_DIR:-$HOME/.local/bin}"
+mkdir -p "$dir" 2>/dev/null || true
 if [ -d "$dir" ] && [ -w "$dir" ]; then
   install "$tmp/standup" "$dir/standup"
 else
@@ -49,4 +52,11 @@ else
 fi
 
 echo "✓ installed: $("$dir/standup" --version)"
+case ":$PATH:" in
+  *:"$dir":*) ;;
+  *)
+    echo "  ⚠ $dir is not on your PATH — add this to your shell profile:"
+    echo "      export PATH=\"$dir:\$PATH\""
+    ;;
+esac
 echo "  run 'standup' to get started — config is created on first run"
