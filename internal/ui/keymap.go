@@ -272,6 +272,13 @@ func (m *Model) cursorInfo() (it *data.Item, key string, ok bool) {
 	}
 	items := m.items()
 	item := items[r.item]
+	if r.kind == rowPR {
+		if prs := m.linkedPRs(item.Key); r.subtask < len(prs) {
+			pr := prs[r.subtask]
+			return &pr, pr.Key, true
+		}
+		return nil, "", false
+	}
 	key = item.Key
 	if r.kind == rowSubtask {
 		key = item.Subtasks[r.subtask].Key

@@ -68,6 +68,7 @@ type rowKind int
 const (
 	rowItem rowKind = iota
 	rowSubtask
+	rowPR // a linked PR nested under a Jira issue
 	rowHeader
 )
 
@@ -413,9 +414,14 @@ func (m *Model) rows() []row {
 
 	for i, it := range items {
 		rows = append(rows, row{kind: rowItem, item: i, subtask: -1})
-		if it.Kind == data.KindJiraIssue && len(it.Subtasks) > 0 && m.expand[it.Key] {
+		if it.Kind == data.KindJiraIssue && m.expand[it.Key] {
 			for s := range it.Subtasks {
 				rows = append(rows, row{kind: rowSubtask, item: i, subtask: s})
+			}
+			if prs := m.linkedPRs(it.Key); len(prs) > 1 {
+				for p := range prs {
+					rows = append(rows, row{kind: rowPR, item: i, subtask: p})
+				}
 			}
 		}
 	}
@@ -629,7 +635,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.collapsed[m.bucketKey(r.bucket)] = false
 		case rowItem:
 			it := m.items()[r.item]
-			if it.Kind == data.KindJiraIssue && len(it.Subtasks) > 0 {
+			if it.Kind == data.KindJiraIssue && (len(it.Subtasks) > 0 || len(m.linkedPRs(it.Key)) > 1) {
 				m.expand[it.Key] = true
 			}
 		}
@@ -643,7 +649,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch r := rows[cur]; r.kind {
 		case rowHeader:
 			m.collapsed[m.bucketKey(r.bucket)] = true
-		case rowSubtask:
+		case rowSubtask, rowPR:
 			parent := m.items()[r.item]
 			m.expand[parent.Key] = false
 			m.setCursor(func(x row) bool { return x.kind == rowItem && x.item == r.item })
@@ -710,6 +716,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			s := it.Subtasks[r.subtask]
 			key, url = s.Key, s.URL
 		}
+		if r.kind == rowPR {
+			if ci, ckey, ok := m.cursorInfo(); ok {
+				it, key, url = *ci, ckey, ci.URL
+			}
+		}
 		if m.km.Is(msg, "copy-linked") {
 			if cp := m.counterpart(it, key); cp != nil {
 				m.copyURL(cp.URL, cp.Key)
@@ -763,6 +774,12 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if r.kind == rowSubtask {
 			key = it.Subtasks[r.subtask].Key
 		}
+		if r.kind == rowPR {
+			if ci, _, ok := m.cursorInfo(); ok {
+				return m.openDetail(*ci)
+			}
+			return m, nil
+		}
 		if it.Kind == data.KindPullRequest {
 			return m.openDetail(it)
 		}
@@ -801,6 +818,12 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		it := m.items()[r.item]
+		if r.kind == rowPR {
+			if ci, _, ok := m.cursorInfo(); ok {
+				return m.openDetail(*ci)
+			}
+			return m, nil
+		}
 		if r.kind == rowSubtask {
 			s := it.Subtasks[r.subtask]
 			return m.openDetail(data.Item{
@@ -1102,6 +1125,8 @@ func (m Model) renderBody(st clientState, avail int) string {
 			line = m.renderHeader(r)
 		case rowSubtask:
 			line = m.renderSubtask(items[r.item].Subtasks[r.subtask])
+		case rowPR:
+			line = m.renderPRChild(items[r.item].Key, r.subtask)
 		default:
 			line = m.renderItem(items[r.item])
 		}
@@ -1123,8 +1148,9 @@ func (m Model) renderItem(it data.Item) string {
 
 	switch it.Kind {
 	case data.KindJiraIssue:
+		prs := m.linkedPRs(it.Key)
 		marker := " "
-		if len(it.Subtasks) > 0 {
+		if len(it.Subtasks) > 0 || len(prs) > 1 {
 			if m.expand[it.Key] {
 				marker = "▾"
 			} else {
@@ -1132,10 +1158,17 @@ func (m Model) renderItem(it data.Item) string {
 			}
 		}
 		parts = append(parts, marker, statusBadge(it.StatusCategory, it.Status), hyperlink(it.URL, keyStyle.Render(it.Key)))
-		if mark := gitMarker(m.linkedPR(it.Key)); mark != "" {
+		if len(prs) > 0 {
+			mark := gitMarker(&prs[0])
+			if len(prs) > 1 {
+				mark += subtaskStyle.Render(fmt.Sprintf("+%d", len(prs)-1))
+			}
 			parts = append(parts, mark)
 		} else if mark := m.branchMarker(it.Key); mark != "" {
 			parts = append(parts, mark)
+		}
+		if m.needsWrapComment(it) {
+			parts = append(parts, alertCommentIcon())
 		}
 		if len(it.Subtasks) > 0 {
 			done := 0
@@ -1330,6 +1363,63 @@ func relAge(t time.Time) string {
 	}
 }
 
+// renderPRChild renders one linked PR nested under its issue.
+func (m Model) renderPRChild(issueKey string, idx int) string {
+	prs := m.linkedPRs(issueKey)
+	if idx >= len(prs) {
+		return ""
+	}
+	p := prs[idx]
+	line := "    └ " + gitMarker(&p)
+	if !p.Merged {
+		if rl := reviewLabel(p.ReviewDecision); rl != "" {
+			line += " " + rl
+		}
+		line += " " + diffStat(p.Additions, p.Deletions)
+	} else {
+		line += subtaskStyle.Render(" merged " + relAge(p.MergedAt) + " ago")
+	}
+	title := p.Title
+	if max := m.width - lipgloss.Width(line) - 6; max > 10 && len(title) > max {
+		title = title[:max-1] + "…"
+	}
+	return line + " " + title
+}
+
+// issueByKey finds the full issue item (subtasks assigned to you are fetched
+// as issues too, even when displayed nested).
+func (m Model) issueByKey(key string) *data.Item {
+	for _, it := range m.states[m.client].issues {
+		if it.Key == key {
+			return &it
+		}
+	}
+	return nil
+}
+
+// needsWrapComment flags finished-but-undocumented work: every linked PR is
+// merged, yet the issue has no Jira comment. Team policy: resolved work gets
+// a wrap-up comment.
+func (m Model) needsWrapComment(it data.Item) bool {
+	if it.Kind != data.KindJiraIssue || it.CommentCount > 0 {
+		return false
+	}
+	prs := m.linkedPRs(it.Key)
+	if len(prs) == 0 {
+		return false
+	}
+	for _, p := range prs {
+		if !p.Merged {
+			return false
+		}
+	}
+	return true
+}
+
+func alertCommentIcon() string {
+	return lipgloss.NewStyle().Foreground(colOrange).Render(commentGlyph + "!")
+}
+
 func (m Model) renderSubtask(s data.Subtask) string {
 	line := fmt.Sprintf("    └ %s %s",
 		statusBadge(s.StatusCategory, s.Status), hyperlink(s.URL, keyStyle.Render(s.Key)))
@@ -1337,6 +1427,9 @@ func (m Model) renderSubtask(s data.Subtask) string {
 		line += " " + mark
 	} else if mark := m.branchMarker(s.Key); mark != "" {
 		line += " " + mark
+	}
+	if sub := m.issueByKey(s.Key); sub != nil && m.needsWrapComment(*sub) {
+		line += " " + alertCommentIcon()
 	}
 	return line + " " + s.Summary
 }

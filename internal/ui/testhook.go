@@ -20,3 +20,10 @@ func InjectTestBranches(model tea.Model, branches []data.BranchRef) tea.Model {
 	m.states[m.client].branches = branches
 	return m
 }
+
+// InjectTestMerged seeds the active client's merged-PR list (test helper).
+func InjectTestMerged(model tea.Model, merged []data.Item) tea.Model {
+	m := model.(Model)
+	m.states[m.client].merged = merged
+	return m
+}

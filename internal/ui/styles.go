@@ -71,6 +71,8 @@ var (
 	branchGlyph = ""
 	githubGlyph = ""
 	mergedGlyph = "\ue727" // nerd-font git-merge
+	// commentGlyph flags merged-but-uncommented issues (nerd-font comment).
+	commentGlyph = "\uf075"
 )
 
 // mergedStyle is GitHub's "merged" purple.
@@ -81,10 +83,12 @@ func setIcons(mode string) {
 		branchGlyph = "⎇"
 		githubGlyph = "⇄"
 		mergedGlyph = "⇌"
+		commentGlyph = "🗨"
 	} else {
 		branchGlyph = "\ue0a0"
 		githubGlyph = "\uf408"
 		mergedGlyph = "\ue727"
+		commentGlyph = "\uf075"
 	}
 }
 

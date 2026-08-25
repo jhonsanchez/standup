@@ -52,7 +52,8 @@ type Item struct {
 	MergeSHA       string // merge commit on the target branch
 	MergeCIState   string // statusCheckRollup of the merge commit (post-merge GHA)
 
-	Description string // Jira description (plain text)
+	Description  string // Jira description (plain text)
+	CommentCount int    // Jira comments on the issue
 }
 
 // PRDetail is lazily-fetched pull-request detail for the detail pane.

@@ -18,7 +18,7 @@ import (
 
 const defaultJQL = `assignee = currentUser() AND sprint in openSprints() ORDER BY updated DESC`
 
-var fields = []string{"summary", "status", "issuetype", "priority", "subtasks", "description"}
+var fields = []string{"summary", "status", "issuetype", "priority", "subtasks", "description", "comment"}
 
 type searchResponse struct {
 	Issues []issue `json:"issues"`
@@ -44,6 +44,9 @@ type issue struct {
 		} `json:"priority"`
 		Subtasks    []issue         `json:"subtasks"`
 		Description json.RawMessage `json:"description"`
+		Comment     *struct {
+			Total int `json:"total"`
+		} `json:"comment"`
 	} `json:"fields"`
 }
 
@@ -295,6 +298,9 @@ func toItem(base string, is issue) data.Item {
 		it.Priority = is.Fields.Priority.Name
 	}
 	it.Description = descriptionText(is.Fields.Description)
+	if is.Fields.Comment != nil {
+		it.CommentCount = is.Fields.Comment.Total
+	}
 	for _, st := range is.Fields.Subtasks {
 		it.Subtasks = append(it.Subtasks, data.Subtask{
 			Key:            st.Key,

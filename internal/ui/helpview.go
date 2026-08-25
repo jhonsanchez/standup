@@ -68,7 +68,8 @@ func (m Model) viewHelp() string {
 		"  " + subtaskStyle.Render(branchGlyph+" repo:branch") + " " + helpArrowStyle.Render("→") + " branch exists, no PR yet",
 		"  " + iconPass + " " + iconFail + " " + iconPending + " " + iconNone + " " + helpArrowStyle.Render("→") + " CI passing / failing / running / none",
 		"  " + iconClash + " " + helpArrowStyle.Render("→") + " merge conflicts",
-		"  [1/3] " + helpArrowStyle.Render("→") + " subtasks done/total (→ expands)",
+		"  [1/3] " + helpArrowStyle.Render("→") + " subtasks done/total (→ expands; also lists multiple linked PRs)",
+		"  " + alertCommentIcon() + " " + helpArrowStyle.Render("→") + " all PRs merged but no Jira comment — add a wrap-up comment",
 		"",
 	}
 	blocks = append(blocks, legend)
