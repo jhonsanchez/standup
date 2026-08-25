@@ -2,6 +2,9 @@ package ui
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -339,6 +342,25 @@ func (m Model) handleDock(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, tea.Quit
+	case "ctrl+o":
+		// Open the full transcript in $EDITOR: complete history as plain
+		// text — select, search, and copy anything, then quit to return.
+		path, err := writeTranscript(cs)
+		if err != nil {
+			m.status = "transcript: " + err.Error()
+			return m, nil
+		}
+		editor := os.Getenv("EDITOR")
+		if editor == "" {
+			editor = os.Getenv("VISUAL")
+		}
+		if editor == "" {
+			editor = "vim"
+		}
+		c := exec.Command(editor, path)
+		return m, tea.ExecProcess(c, func(err error) tea.Msg {
+			return execDoneMsg{name: "transcript", err: err}
+		})
 	case "ctrl+y":
 		for i := len(cs.msgs) - 1; i >= 0; i-- {
 			if cs.msgs[i].role == chatRoleAssistant {
@@ -441,7 +463,7 @@ func (m Model) viewDock() string {
 	wrap := lipgloss.NewStyle().Width(w)
 
 	headStyle := chatClaudeStyle
-	hint := "enter send · esc close · ctrl+y copy reply · ctrl+u/d scroll"
+	hint := "enter send · esc close · ctrl+y copy reply · ctrl+o full transcript · ctrl+u/d scroll"
 	if cs.running {
 		hint = "ctrl+c cancel · " + hint + " (turn keeps running when closed)"
 	}
@@ -501,4 +523,32 @@ func maxInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// writeTranscript dumps the conversation as plain markdown to a state file.
+func writeTranscript(cs *chatSession) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(home, ".local", "state", "standup", "transcripts")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "# chat · %s · %s\n\n", cs.itemKey, cs.repoDir)
+	for _, msg := range cs.msgs {
+		switch msg.role {
+		case chatRoleUser:
+			b.WriteString("## you\n\n" + msg.text + "\n\n")
+		case chatRoleAssistant:
+			b.WriteString("## claude\n\n" + msg.text + "\n\n")
+		case chatRoleTool:
+			b.WriteString("> ⚒ " + msg.text + "\n\n")
+		default:
+			b.WriteString("> " + msg.text + "\n\n")
+		}
+	}
+	path := filepath.Join(dir, cs.itemKey+".md")
+	return path, os.WriteFile(path, []byte(b.String()), 0o600)
 }
