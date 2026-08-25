@@ -25,7 +25,7 @@ Usage:
   standup <client>     launch with a single client only (screen-share safe)
   standup config       print the config path and effective settings (tokens redacted)
   standup doctor       check config, credentials, endpoints, and tools
-  standup upgrade      update to the latest release
+  standup upgrade      update to the latest release (alias: update)
   standup --version    print version
   standup --help       this help
 

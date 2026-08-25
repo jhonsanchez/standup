@@ -30,7 +30,7 @@ func main() {
 		case "doctor":
 			cmdDoctor()
 			return
-		case "upgrade":
+		case "upgrade", "update":
 			if err := upgrade.Run(version); err != nil {
 				fmt.Fprintln(os.Stderr, "standup: upgrade failed:", err)
 				os.Exit(1)
