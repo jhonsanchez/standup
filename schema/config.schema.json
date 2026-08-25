@@ -173,6 +173,13 @@
               "type": "string"
             },
             "description": "Jira project key → default repo folder for the chat when an item has no linked PR/branch yet, e.g. {FALCON: zpc-system-test}."
+          },
+          "env": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Extra environment for every subprocess standup launches for this client (chat, agent, terminal, git UI). Values support a leading ~/. Example: {CLAUDE_CONFIG_DIR: ~/.claude-zebra} for a per-client Claude profile."
           }
         }
       }

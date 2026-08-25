@@ -356,7 +356,8 @@ func (m Model) handleDock(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if cs.claudeID == "" {
 			system = m.chatContext(cs.item)
 		}
-		stream, err := chat.Send(cs.repoDir, cs.claudeID, system, m.cfg.ChatPermissionMode(), text)
+		stream, err := chat.Send(cs.repoDir, cs.claudeID, system, m.cfg.ChatPermissionMode(), text,
+			m.cfg.Clients[m.client].EnvList())
 		if err != nil {
 			m.status = "chat: " + err.Error()
 			return m, nil

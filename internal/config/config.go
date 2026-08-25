@@ -161,6 +161,23 @@ type Client struct {
 	// RepoMap maps a Jira project key to a default repo folder for items
 	// with no linked PR or branch yet (e.g. FALCON: zpc-system-test).
 	RepoMap map[string]string `yaml:"repo_map,omitempty"`
+	// Env is extra environment for every subprocess standup launches for
+	// this client (chat, agent, terminal, git UI) — e.g. a per-client
+	// CLAUDE_CONFIG_DIR so claude uses a client-specific profile.
+	Env map[string]string `yaml:"env,omitempty"`
+}
+
+// EnvList renders Env as KEY=VALUE pairs, expanding a leading ~/ in values.
+func (c *Client) EnvList() []string {
+	var out []string
+	for k, v := range c.Env {
+		if strings.HasPrefix(v, "~/") {
+			home, _ := os.UserHomeDir()
+			v = filepath.Join(home, v[2:])
+		}
+		out = append(out, k+"="+v)
+	}
+	return out
 }
 
 // ProjectsBase returns the directory holding this client's local clones.

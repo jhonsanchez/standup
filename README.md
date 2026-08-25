@@ -91,6 +91,8 @@ clients:
     github:
       orgs: [your-org]              # and/or repos: [owner/repo]
     # projects_dir: ~/projects/work # local clones (default ~/projects/<name>)
+    # env:                          # extra env for chat/agent/terminal subprocesses
+    #   CLAUDE_CONFIG_DIR: ~/.claude-work   # per-client Claude profile
 
   - name: selfhosted
     jira:

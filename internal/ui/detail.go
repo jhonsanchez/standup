@@ -485,6 +485,9 @@ func (m *Model) execInRepo(name, prog string, args ...string) tea.Cmd {
 	}
 	c := exec.Command(prog, args...)
 	c.Dir = dir
+	if env := m.cfg.Clients[m.client].EnvList(); len(env) > 0 {
+		c.Env = append(os.Environ(), env...)
+	}
 	return tea.ExecProcess(c, func(err error) tea.Msg {
 		return execDoneMsg{name: name, err: err}
 	})
