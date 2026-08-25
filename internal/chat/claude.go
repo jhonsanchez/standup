@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -43,6 +44,12 @@ func Send(dir, sessionID, systemAppend, permMode, prompt string, extraEnv, allow
 	}
 	for _, t := range allowedTools {
 		args = append(args, "--allowedTools", t)
+	}
+	// Project-scoped MCP servers (.mcp.json) need interactive approval,
+	// which headless runs can't give — passing the file explicitly loads
+	// them without the prompt.
+	if mcp := filepath.Join(dir, ".mcp.json"); fileExists(mcp) {
+		args = append(args, "--mcp-config", mcp)
 	}
 	if sessionID != "" {
 		args = append(args, "--resume", sessionID)
@@ -207,4 +214,9 @@ func compact(s string, n int) string {
 		return s[:n] + "…"
 	}
 	return s
+}
+
+func fileExists(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && !st.IsDir()
 }
