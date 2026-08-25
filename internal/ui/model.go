@@ -109,6 +109,7 @@ type Model struct {
 	chatInput      textarea.Model
 	chatRepoChoice map[string]string // per-issue repo pick for the chat
 	dock           *dockState        // bottom chat panel
+	mouseOff       bool              // mouse capture disabled (text selection mode)
 	repoPick       *repoPickState    // chat repo chooser overlay
 	branchOp       *branchConfirm    // b start-work confirmation
 }
@@ -642,6 +643,15 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.clientPick = true
 		}
 		return m, nil
+
+	case m.km.Is(msg, "mouse"):
+		m.mouseOff = !m.mouseOff
+		if m.mouseOff {
+			m.status = "mouse capture off — select/copy text freely; M re-enables wheel scrolling"
+			return m, tea.DisableMouse
+		}
+		m.status = "mouse capture on — wheel scrolls; hold option/shift while dragging to select"
+		return m, tea.EnableMouseCellMotion
 
 	case m.km.Is(msg, "edit-config"):
 		// Edit the config in $EDITOR; hot-reload on return.

@@ -172,6 +172,8 @@ func defaultKeymap() *keymap {
 			desc: "Go back one detail level", ctx: ctxDetail},
 		{id: "to-list", primary: "q", group: grpSystem,
 			desc: "Close details and return to the list", ctx: ctxDetail},
+		{id: "mouse", primary: "M", group: grpSystem,
+			desc: "Toggle mouse capture — off lets you select/copy text with the mouse (wheel scroll pauses)", ctx: ctxList | ctxDetail},
 		{id: "help", primary: "?", group: grpSystem, short: "? help",
 			desc: "Show this shortcuts menu", ctx: ctxList | ctxDetail},
 		{id: "quit", primary: "q", aliases: []string{"ctrl+c"}, group: grpSystem,

@@ -339,6 +339,15 @@ func (m Model) handleDock(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, tea.Quit
+	case "ctrl+y":
+		for i := len(cs.msgs) - 1; i >= 0; i-- {
+			if cs.msgs[i].role == chatRoleAssistant {
+				m.copyURL(cs.msgs[i].text, "last reply")
+				return m, nil
+			}
+		}
+		m.status = "no reply to copy yet"
+		return m, nil
 	case "ctrl+u", "pgup":
 		cs.scroll += 5
 		return m, nil
@@ -432,9 +441,12 @@ func (m Model) viewDock() string {
 	wrap := lipgloss.NewStyle().Width(w)
 
 	headStyle := chatClaudeStyle
-	hint := "enter send · esc close · ctrl+u/d scroll"
+	hint := "enter send · esc close · ctrl+y copy reply · ctrl+u/d scroll"
 	if cs.running {
 		hint = "ctrl+c cancel · " + hint + " (turn keeps running when closed)"
+	}
+	if m.status != "" {
+		hint = m.status
 	}
 	label := " chat · " + m.dock.key + " · " + cs.repoDir + " "
 	bar := label + strings.Repeat("─", maxInt(0, w-lipgloss.Width(label)))
