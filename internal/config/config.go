@@ -127,6 +127,9 @@ type Client struct {
 	// ProjectsDir is where this client's repos are cloned locally.
 	// Defaults to ~/projects/<name>. Used by the checkout action.
 	ProjectsDir string `yaml:"projects_dir,omitempty"`
+	// RepoMap maps a Jira project key to a default repo folder for items
+	// with no linked PR or branch yet (e.g. FALCON: zpc-system-test).
+	RepoMap map[string]string `yaml:"repo_map,omitempty"`
 }
 
 // ProjectsBase returns the directory holding this client's local clones.

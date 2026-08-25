@@ -152,6 +152,10 @@ permission allowlists — no special commands. Tool activity streams as `⚒`
 lines, each issue keeps its own resumable session, `enter` sends, `esc`
 cancels a running turn or steps back. `commands.chat_permission_mode`
 (default `acceptEdits`, or `plan` for read-only) governs what it may do.
+The working directory resolves from the item's linked PR, a matching
+branch, or the client's `repo_map` (Jira project key → repo folder); with
+none of those, a type-to-filter **repo picker** asks once per issue —
+enter with no filter uses the projects root as the default.
 
 ### Custom keybindings
 

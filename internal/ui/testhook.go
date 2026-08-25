@@ -13,3 +13,10 @@ func InjectTestData(model tea.Model, issues []data.Item) tea.Model {
 	m.states[m.client].issues = issues
 	return m
 }
+
+// InjectTestBranches seeds the active client's branch scan (test helper).
+func InjectTestBranches(model tea.Model, branches []data.BranchRef) tea.Model {
+	m := model.(Model)
+	m.states[m.client].branches = branches
+	return m
+}

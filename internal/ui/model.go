@@ -95,17 +95,19 @@ type Model struct {
 	height    int
 	status    string
 
-	version       string // running version, for the update notice
-	updateAvail   string // newer release tag, when detected
-	updateApplied string // tag auto-installed in the background
-	detailStack   []detailState
-	pick          []data.Item // jump-target picker overlay
-	pendingG      bool        // first g of a gg sequence (detail view)
-	clientPick    bool        // client-switcher overlay (list view)
-	showHelp      bool        // `?` shortcuts menu
-	km            *keymap
-	chats         map[string]*chatSession
-	chatInput     textarea.Model
+	version        string // running version, for the update notice
+	updateAvail    string // newer release tag, when detected
+	updateApplied  string // tag auto-installed in the background
+	detailStack    []detailState
+	pick           []data.Item // jump-target picker overlay
+	pendingG       bool        // first g of a gg sequence (detail view)
+	clientPick     bool        // client-switcher overlay (list view)
+	showHelp       bool        // `?` shortcuts menu
+	km             *keymap
+	chats          map[string]*chatSession
+	chatInput      textarea.Model
+	chatRepoChoice map[string]string // per-issue repo pick for the chat
+	repoPick       *repoPickState    // chat repo chooser overlay
 }
 
 func New(cfg *config.Config, version string) Model {
@@ -128,18 +130,20 @@ func New(cfg *config.Config, version string) Model {
 	km := defaultKeymap()
 	warns := km.applyOverrides(cfg.Keys)
 	m := Model{
-		cfg:       cfg,
-		states:    make([]clientState, len(cfg.Clients)),
-		cursor:    map[string]int{},
-		expand:    map[string]bool{},
-		collapsed: map[string]bool{},
-		spin:      sp,
-		filter:    fi,
-		km:        km,
-		version:   version,
-		chats:     map[string]*chatSession{},
-		chatInput: ta,
+		cfg:            cfg,
+		states:         make([]clientState, len(cfg.Clients)),
+		cursor:         map[string]int{},
+		expand:         map[string]bool{},
+		collapsed:      map[string]bool{},
+		spin:           sp,
+		filter:         fi,
+		km:             km,
+		version:        version,
+		chats:          map[string]*chatSession{},
+		chatInput:      ta,
+		chatRepoChoice: map[string]string{},
 	}
+	m.chatInput = ta
 	if len(warns) > 0 {
 		m.status = "⚠ " + strings.Join(warns, " · ")
 	}
@@ -505,6 +509,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateDetail(msg)
 
 	case tea.KeyMsg:
+		if m.repoPick != nil {
+			return m.handleRepoPick(msg)
+		}
 		if m.showHelp {
 			// Which-key behavior: esc/? closes; any other key closes AND runs.
 			m.showHelp = false
@@ -885,6 +892,9 @@ func padToHeight(s string, h int) string {
 }
 
 func (m Model) View() string {
+	if m.repoPick != nil {
+		return m.viewRepoPick()
+	}
 	if m.showHelp {
 		return m.viewHelp()
 	}

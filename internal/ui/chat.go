@@ -2,9 +2,11 @@ package ui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -49,15 +51,30 @@ var (
 	chatToolStyle   = lipgloss.NewStyle().Foreground(colDim)
 )
 
-// openChat pushes the chat view for an item onto the detail stack.
+// openChat pushes the chat view for an item onto the detail stack, asking
+// which repo to use when nothing links the item to one.
 func (m *Model) openChat(it data.Item) (tea.Model, tea.Cmd) {
 	cs := m.chats[it.Key]
 	if cs == nil {
-		cs = &chatSession{itemKey: it.Key, repoDir: m.chatRepoDir(it)}
-		cs.msgs = append(cs.msgs, chatMsg{role: chatRoleSystem, text: fmt.Sprintf(
-			"chat about %s · claude runs in %s — ask questions, or tell it to comment on Jira or fix the code (your skills/permissions apply)",
-			it.Key, cs.repoDir)})
-		m.chats[it.Key] = cs
+		dir, confident := m.chatRepoDir(it)
+		if chosen := m.chatRepoChoice[it.Key]; chosen != "" {
+			dir, confident = chosen, true
+		}
+		if !confident {
+			if repos := m.repoOptions(); len(repos) > 0 {
+				ti := textinput.New()
+				ti.Prompt = "repo: "
+				ti.Placeholder = "type to filter — enter picks first match, empty = projects root"
+				ti.Focus()
+				m.repoPick = &repoPickState{item: it, input: ti, repos: repos, root: dir}
+				return *m, textinput.Blink
+			}
+		}
+		cs = m.newChatSession(it, dir)
+	} else if upgraded, ok := m.chatRepoDir(it); ok && m.chatRepoChoice[it.Key] == "" && upgraded != cs.repoDir {
+		// A PR/branch appeared since the chat was created — re-anchor.
+		cs.repoDir = upgraded
+		cs.msgs = append(cs.msgs, chatMsg{role: chatRoleSystem, text: "→ now running in " + upgraded})
 	}
 	st := detailState{item: it, isChat: true}
 	st.item.URL = it.URL + "#chat"
@@ -69,24 +86,138 @@ func (m *Model) openChat(it data.Item) (tea.Model, tea.Cmd) {
 	return *m, textarea.Blink
 }
 
+func (m *Model) newChatSession(it data.Item, dir string) *chatSession {
+	cs := &chatSession{itemKey: it.Key, repoDir: dir}
+	cs.msgs = append(cs.msgs, chatMsg{role: chatRoleSystem, text: fmt.Sprintf(
+		"chat about %s · claude runs in %s — ask questions, or tell it to comment on Jira or fix the code (your skills/permissions apply)",
+		it.Key, dir)})
+	m.chats[it.Key] = cs
+	return cs
+}
+
+type repoOption struct {
+	name string
+	dir  string
+}
+
+type repoPickState struct {
+	item  data.Item
+	input textinput.Model
+	repos []repoOption
+	root  string
+}
+
+// repoOptions lists the client's local clones (from the branch scan — free).
+func (m *Model) repoOptions() []repoOption {
+	seen := map[string]bool{}
+	var out []repoOption
+	for _, b := range m.states[m.client].branches {
+		if !seen[b.Repo] {
+			seen[b.Repo] = true
+			out = append(out, repoOption{name: b.Repo, dir: b.RepoDir})
+		}
+	}
+	sort.Slice(out, func(a, b int) bool { return out[a].name < out[b].name })
+	return out
+}
+
+func (rp *repoPickState) filtered() []repoOption {
+	f := strings.ToLower(strings.TrimSpace(rp.input.Value()))
+	if f == "" {
+		return rp.repos
+	}
+	var out []repoOption
+	for _, r := range rp.repos {
+		if strings.Contains(strings.ToLower(r.name), f) {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// handleRepoPick processes keys while the chat repo picker is open.
+func (m Model) handleRepoPick(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	rp := m.repoPick
+	switch msg.String() {
+	case "esc":
+		m.repoPick = nil
+		return m, nil
+	case "enter":
+		dir := rp.root // empty filter → projects root default
+		flt := rp.filtered()
+		if strings.TrimSpace(rp.input.Value()) != "" && len(flt) > 0 {
+			dir = flt[0].dir
+		}
+		return m.finishRepoPick(dir)
+	default:
+		if s := msg.String(); len(s) == 1 && s >= "1" && s <= "9" {
+			if flt := rp.filtered(); len(flt) <= 9 || rp.input.Value() != "" {
+				if n := int(s[0] - '1'); n < len(flt) {
+					return m.finishRepoPick(flt[n].dir)
+				}
+			}
+		}
+	}
+	var cmd tea.Cmd
+	rp.input, cmd = rp.input.Update(msg)
+	return m, cmd
+}
+
+func (m Model) finishRepoPick(dir string) (tea.Model, tea.Cmd) {
+	rp := m.repoPick
+	m.repoPick = nil
+	m.chatRepoChoice[rp.item.Key] = dir
+	m.newChatSession(rp.item, dir)
+	return m.openChat(rp.item)
+}
+
+// viewRepoPick renders the chat repo chooser.
+func (m Model) viewRepoPick() string {
+	rp := m.repoPick
+	var b strings.Builder
+	b.WriteString(headerLabel.Render("Where should Claude work on "+rp.item.Key+"?") + "\n")
+	b.WriteString(subtaskStyle.Render("no linked PR or branch yet — pick a repo, or enter with no filter for the projects root ("+rp.root+")") + "\n\n")
+	b.WriteString(rp.input.View() + "\n\n")
+	flt := rp.filtered()
+	limit := 9
+	for i, r := range flt {
+		if i >= limit {
+			b.WriteString(subtaskStyle.Render(fmt.Sprintf("  … %d more — keep typing to narrow", len(flt)-limit)) + "\n")
+			break
+		}
+		b.WriteString(fmt.Sprintf("  %s %s %s\n",
+			keyStyle.Render(fmt.Sprintf("%d)", i+1)), r.name, subtaskStyle.Render(r.dir)))
+	}
+	b.WriteString("\n" + helpStyle.Render("1-9/enter pick · enter (empty) projects root · esc cancel"))
+	return padToHeight(lipgloss.NewStyle().Padding(0, 1).Render(b.String()), m.termHeight())
+}
+
 // chatRepoDir picks where claude runs: the linked PR's clone, a matching
-// branch's clone, or the client's projects dir as a fallback.
-func (m *Model) chatRepoDir(it data.Item) string {
+// branch's clone, the repo_map default — or, unconfidently, the projects
+// root (which triggers the repo picker).
+func (m *Model) chatRepoDir(it data.Item) (string, bool) {
 	client := m.cfg.Clients[m.client]
 	if it.Kind == data.KindPullRequest {
 		if dir, ok := client.RepoDir(it.Repo); ok {
-			return dir
+			return dir, true
 		}
 	}
 	if pr := m.linkedPR(it.Key); pr != nil {
 		if dir, ok := client.RepoDir(pr.Repo); ok {
-			return dir
+			return dir, true
 		}
 	}
 	if brs := m.localBranches(it.Key); len(brs) > 0 {
-		return brs[0].RepoDir
+		return brs[0].RepoDir, true
 	}
-	return client.ProjectsBase()
+	if proj, _, ok := strings.Cut(it.Key, "-"); ok {
+		if repo := client.RepoMap[proj]; repo != "" {
+			if dir, exists := client.RepoDir(repo); exists {
+				return dir, true
+			}
+		}
+	}
+	return client.ProjectsBase(), false
 }
 
 // chatContext serializes what standup knows about the item for the system

@@ -166,6 +166,13 @@
                 "description": "Limit searches to these owner/repo entries."
               }
             }
+          },
+          "repo_map": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Jira project key → default repo folder for the chat when an item has no linked PR/branch yet, e.g. {FALCON: zpc-system-test}."
           }
         }
       }
