@@ -30,6 +30,7 @@ type chatMsg struct {
 // chatSession is the per-issue conversation. It outlives the view (sessions
 // map on the model), so esc + reopen resumes where you left off.
 type chatSession struct {
+	item     data.Item
 	itemKey  string
 	repoDir  string
 	claudeID string // claude session for --resume
@@ -78,18 +79,41 @@ func (m *Model) openChat(it data.Item) (tea.Model, tea.Cmd) {
 		cs.repoDir = upgraded
 		cs.msgs = append(cs.msgs, chatMsg{role: chatRoleSystem, text: "→ now running in " + upgraded})
 	}
-	st := detailState{item: it, isChat: true}
-	st.item.URL = it.URL + "#chat"
 	m.pick = nil
 	m.status = ""
-	m.detailStack = append(m.detailStack, st)
-	m.chatInput.Reset()
+	m.dock = &dockState{key: it.Key, focused: true}
 	m.chatInput.Focus()
 	return *m, textarea.Blink
 }
 
+// dockState is the bottom chat panel: the upper view keeps rendering above
+// it; focus decides where keys go.
+type dockState struct {
+	key     string
+	focused bool
+}
+
+func (m Model) dockHeight() int {
+	if m.dock == nil {
+		return 0
+	}
+	h := 14
+	if half := m.termHeight() / 2; half < h {
+		h = half
+	}
+	if h < 8 {
+		h = 8
+	}
+	return h
+}
+
+// contentHeight is what the upper view may use when the dock is open.
+func (m Model) contentHeight() int {
+	return m.termHeight() - m.dockHeight()
+}
+
 func (m *Model) newChatSession(it data.Item, dir string) *chatSession {
-	cs := &chatSession{itemKey: it.Key, repoDir: dir}
+	cs := &chatSession{item: it, itemKey: it.Key, repoDir: dir}
 	cs.msgs = append(cs.msgs, chatMsg{role: chatRoleSystem, text: fmt.Sprintf(
 		"chat about %s · claude runs in %s — ask questions, or tell it to comment on Jira or fix the code (your skills/permissions apply)",
 		it.Key, dir)})
@@ -258,10 +282,9 @@ func (m *Model) chatRepoDir(it data.Item) (string, bool) {
 
 // chatContext serializes what standup knows about the item for the system
 // prompt of the first turn.
-func (m *Model) chatContext(t *detailState) string {
-	it := t.item
+func (m *Model) chatContext(it data.Item) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "You are chatting inside a terminal dashboard about %s: %s (%s). ", it.Key, it.Title, strings.TrimSuffix(it.URL, "#chat"))
+	fmt.Fprintf(&b, "You are chatting inside a terminal dashboard about %s: %s (%s). ", it.Key, it.Title, it.URL)
 	fmt.Fprintf(&b, "Status: %s. ", it.Status)
 	if it.Description != "" {
 		fmt.Fprintf(&b, "\n\nDescription:\n%s\n", it.Description)
@@ -287,10 +310,9 @@ func orDash(s string) string {
 	return s
 }
 
-// updateChat handles keys while the chat view is on top.
-func (m Model) updateChat(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	t := m.top()
-	cs := m.chats[t.item.Key]
+// handleDock handles keys while the chat dock is focused.
+func (m Model) handleDock(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	cs := m.chats[m.dock.key]
 	switch msg.String() {
 	case "esc":
 		if cs != nil && cs.running {
@@ -299,8 +321,13 @@ func (m Model) updateChat(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			cs.msgs = append(cs.msgs, chatMsg{role: chatRoleSystem, text: "· cancelled"})
 			return m, nil
 		}
+		// Unfocus: keys go back to the upper view; the dock stays visible.
+		m.dock.focused = false
 		m.chatInput.Blur()
-		m.detailStack = m.detailStack[:len(m.detailStack)-1]
+		return m, nil
+	case "ctrl+x":
+		m.chatInput.Blur()
+		m.dock = nil
 		return m, nil
 	case "ctrl+c":
 		if cs != nil && cs.running {
@@ -310,10 +337,10 @@ func (m Model) updateChat(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Quit
 	case "ctrl+u", "pgup":
-		cs.scroll += 10
+		cs.scroll += 5
 		return m, nil
 	case "ctrl+d", "pgdown":
-		if cs.scroll -= 10; cs.scroll < 0 {
+		if cs.scroll -= 5; cs.scroll < 0 {
 			cs.scroll = 0
 		}
 		return m, nil
@@ -324,7 +351,7 @@ func (m Model) updateChat(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		system := ""
 		if cs.claudeID == "" {
-			system = m.chatContext(t)
+			system = m.chatContext(cs.item)
 		}
 		stream, err := chat.Send(cs.repoDir, cs.claudeID, system, m.cfg.ChatPermissionMode(), text)
 		if err != nil {
@@ -386,55 +413,55 @@ func (m Model) applyChatEvent(msg chatEvMsg) (tea.Model, tea.Cmd) {
 	return m, m.listenChat(cs)
 }
 
-// viewChat renders the conversation with the input pinned at the bottom.
-func (m Model) viewChat(t *detailState) string {
-	cs := m.chats[t.item.Key]
-	w := m.width - 4
+// viewDock renders the bottom chat panel at exactly dockHeight lines.
+func (m Model) viewDock() string {
+	cs := m.chats[m.dock.key]
+	h := m.dockHeight()
+	w := m.width - 2
 	if w < 40 {
 		w = 40
 	}
 	wrap := lipgloss.NewStyle().Width(w)
 
-	pinned := []string{
-		lipgloss.NewStyle().MaxWidth(w).Render(
-			hyperlink(strings.TrimSuffix(t.item.URL, "#chat"), headerLabel.Render(t.item.Key)) +
-				" — chat " + subtaskStyle.Render("("+cs.repoDir+")")),
-		subtaskStyle.Render(strings.Repeat("─", w)),
+	headStyle, hint := chatToolStyle, "A focus chat · ctrl+x close"
+	if m.dock.focused {
+		headStyle = chatClaudeStyle
+		hint = "enter send · esc unfocus · ctrl+u/d scroll · ctrl+x close"
+		if cs.running {
+			hint = "esc cancel · " + hint
+		}
 	}
+	label := " chat · " + m.dock.key + " · " + cs.repoDir + " "
+	bar := label + strings.Repeat("─", maxInt(0, w-lipgloss.Width(label)))
+	header := headStyle.Render(bar)
 
 	var lines []string
-	push := func(s string) {
-		lines = append(lines, strings.Split(wrap.Render(s), "\n")...)
+	push := func(str string) {
+		lines = append(lines, strings.Split(wrap.Render(str), "\n")...)
 	}
 	for _, msg := range cs.msgs {
 		switch msg.role {
 		case chatRoleUser:
 			push(chatYouStyle.Render("you ▸ ") + msg.text)
 		case chatRoleAssistant:
-			push(chatClaudeStyle.Render("claude ▸"))
-			push(jirafmt.Markdown(msg.text))
+			push(chatClaudeStyle.Render("claude ▸ ") + jirafmt.Markdown(msg.text))
 		case chatRoleTool:
 			push(chatToolStyle.Render("  ⚒ " + msg.text))
 		default:
 			push(subtaskStyle.Render(msg.text))
 		}
-		push("")
 	}
 	if cs.running {
-		push(m.spin.View() + subtaskStyle.Render(" thinking… (esc cancels)"))
+		push(m.spin.View() + subtaskStyle.Render(" thinking…"))
 	}
 
 	m.chatInput.SetWidth(w)
-	inputView := m.chatInput.View()
-	help := "enter send · esc back"
-	if cs.running {
-		help = "esc cancel · " + help
-	}
-	footer := inputView + "\n" + helpStyle.MaxWidth(m.width).Render(help)
+	input := m.chatInput.View()
+	footer := input + "\n" + helpStyle.MaxWidth(m.width).Render(hint)
 
-	avail := m.termHeight() - len(pinned) - lipgloss.Height(footer) - 1
-	if avail < 3 {
-		avail = 3
+	avail := h - 1 - lipgloss.Height(footer)
+	if avail < 1 {
+		avail = 1
 	}
 	start := len(lines) - avail - cs.scroll
 	if start < 0 {
@@ -445,6 +472,12 @@ func (m Model) viewChat(t *detailState) string {
 		end = len(lines)
 	}
 	body := padToHeight(strings.Join(lines[start:end], "\n"), avail)
-	return lipgloss.NewStyle().Padding(0, 1).Render(
-		strings.Join(pinned, "\n") + "\n" + body + "\n" + footer)
+	return lipgloss.NewStyle().Padding(0, 1).Render(header + "\n" + body + "\n" + footer)
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

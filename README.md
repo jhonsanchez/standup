@@ -145,8 +145,10 @@ branch for an unlinked issue, repo suggested from the title) · `C` checks ·
 `ctrl+d/u/f/b`, `gg`/`G`) — and in detail views: `p` jump issue⇄PR,
 `c` checkout, `L` lazygit, `t` terminal, `a` AI agent, `esc` back.
 
-**`A` — chat pane**: converse with Claude about any issue or PR without
-leaving the dashboard (from the list or a detail view). It runs your own
+**`A` — chat dock**: a Claude-style bottom panel — the list or detail view
+keeps rendering (and refreshing) above it while you converse below. `esc`
+unfocuses the input so navigation keys work with the conversation still
+visible and streaming; `A` refocuses; `ctrl+x` closes. It runs your own
 Claude Code headless in the item's repo with the ticket context injected,
 so plain-language requests like *"add a Jira comment saying it's tested"*
 or *"fix the flaky check and push"* work through your existing skills and

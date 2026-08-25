@@ -108,6 +108,7 @@ type Model struct {
 	chats          map[string]*chatSession
 	chatInput      textarea.Model
 	chatRepoChoice map[string]string // per-issue repo pick for the chat
+	dock           *dockState        // bottom chat panel
 	repoPick       *repoPickState    // chat repo chooser overlay
 	branchOp       *branchConfirm    // b start-work confirmation
 }
@@ -519,6 +520,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.applyBranchDone(msg)
 
 	case tea.KeyMsg:
+		if m.dock != nil && msg.String() == "ctrl+x" {
+			m.chatInput.Blur()
+			m.dock = nil
+			return m, nil
+		}
+		if m.dock != nil && m.dock.focused {
+			return m.handleDock(msg)
+		}
 		if m.branchOp != nil {
 			return m.handleBranchConfirm(msg)
 		}
@@ -752,7 +761,17 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case m.km.Is(msg, "chat"):
 		it, _, ok := m.cursorInfo()
 		if !ok {
+			if m.dock != nil {
+				m.dock.focused = true
+				m.chatInput.Focus()
+				return m, textarea.Blink
+			}
 			return m, nil
+		}
+		if m.dock != nil && m.dock.key == it.Key {
+			m.dock.focused = true
+			m.chatInput.Focus()
+			return m, textarea.Blink
 		}
 		return m.openChat(*it)
 
@@ -939,7 +958,7 @@ func (m Model) View() string {
 		return m.viewHelp()
 	}
 	if len(m.detailStack) > 0 {
-		return m.viewDetail()
+		return m.withDock(m.viewDetail())
 	}
 	var b strings.Builder
 
@@ -1015,12 +1034,20 @@ func (m Model) View() string {
 	fparts = append(fparts, helpStyle.MaxWidth(m.width).Render(help))
 	footer := strings.Join(fparts, "\n")
 
-	avail := m.termHeight() - 4 - lipgloss.Height(footer)
+	avail := m.contentHeight() - 4 - lipgloss.Height(footer)
 	if avail < 3 {
 		avail = 3
 	}
 	body := padToHeight(m.renderBody(st, avail), avail)
-	return head + body + "\n" + footer
+	return m.withDock(head + body + "\n" + footer)
+}
+
+// withDock appends the chat dock below the upper view when open.
+func (m Model) withDock(upper string) string {
+	if m.dock == nil {
+		return upper
+	}
+	return upper + "\n" + m.viewDock()
 }
 
 // listHelp is the minimal pinned footer: the highest-value hints for the

@@ -119,10 +119,10 @@ func defaultKeymap() *keymap {
 					m.linkedPR(it.Key) == nil && len(m.localBranches(it.Key)) == 0
 			}},
 		{id: "chat", primary: "A", group: grpGit,
-			desc: "Chat with Claude about this item — it can answer, comment on Jira, or fix code", ctx: ctxList | ctxDetail,
+			desc: "Open the Claude chat dock for this item — it can answer, comment on Jira, or fix code", ctx: ctxList | ctxDetail,
 			when: func(m *Model) bool {
 				if t := m.top(); t != nil {
-					return !t.isChat
+					return true
 				}
 				_, _, ok := m.cursorInfo()
 				return ok
