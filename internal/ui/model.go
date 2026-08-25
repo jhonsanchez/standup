@@ -326,6 +326,29 @@ func (m *Model) items() []data.Item {
 	} else {
 		src = st.issues
 	}
+	// A subtask assigned to you is also returned by the sprint query as a
+	// top-level issue. When its parent is in the list too, show it only
+	// nested under the parent — not duplicated at the top level.
+	if m.view == viewIssues {
+		subKeys := map[string]bool{}
+		for _, it := range src {
+			if it.Kind == data.KindJiraIssue {
+				for _, st := range it.Subtasks {
+					subKeys[st.Key] = true
+				}
+			}
+		}
+		if len(subKeys) > 0 {
+			var kept []data.Item
+			for _, it := range src {
+				if !subKeys[it.Key] {
+					kept = append(kept, it)
+				}
+			}
+			src = kept
+		}
+	}
+
 	f := strings.ToLower(strings.TrimSpace(m.filter.Value()))
 	if f == "" {
 		return src
@@ -1002,9 +1025,21 @@ func (m Model) renderBody(st clientState, avail int) string {
 	if window < 1 {
 		window = 1
 	}
+	// Keep a few rows of lookahead below the cursor (vim scrolloff) so
+	// expanding subtasks/groups at the bottom edge stays visible.
+	scrolloff := 3
+	if scrolloff > window-1 {
+		scrolloff = 0
+	}
 	start := 0
-	if cur >= window {
-		start = cur - window + 1
+	if cur >= window-scrolloff {
+		start = cur - (window - scrolloff) + 1
+	}
+	if start+window > len(rows) {
+		start = len(rows) - window
+	}
+	if start < 0 {
+		start = 0
 	}
 	end := start + window
 	if end > len(rows) {
