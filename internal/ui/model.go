@@ -649,6 +649,23 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case m.km.Is(msg, "checks"):
+		// GHA checks window straight from the list, via the row's PR.
+		it, key, ok := m.cursorInfo()
+		if !ok {
+			return m, nil
+		}
+		pr := *it
+		if pr.Kind != data.KindPullRequest {
+			lp := m.linkedPR(key)
+			if lp == nil {
+				m.status = "no linked PR for " + key
+				return m, nil
+			}
+			pr = *lp
+		}
+		return m.openChecks(pr)
+
 	case m.km.Is(msg, "git-view"):
 		// Git view: jump straight to the linked PR's detail.
 		if len(rows) == 0 || rows[cur].kind == rowHeader {
@@ -921,7 +938,7 @@ func (m Model) listHelp() string {
 				}
 			}
 			if (&m).cursorHasGit() {
-				parts = append(parts, m.km.label("git-view")+" git")
+				parts = append(parts, m.km.label("git-view")+" git", m.km.label("checks")+" checks")
 			}
 		}
 	}

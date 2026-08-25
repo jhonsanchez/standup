@@ -107,13 +107,13 @@ func defaultKeymap() *keymap {
 			desc: "Jump between a Jira issue and its linked PR(s)", ctx: ctxDetail,
 			when: func(m *Model) bool { return len(m.jumpTargets()) > 0 }},
 		{id: "checks", primary: "C", group: grpGit,
-			desc: "Open the GHA checks window for the PR's commit (post-merge if merged)", ctx: ctxDetail,
+			desc: "Open the GHA checks window for the PR's commit (post-merge if merged)", ctx: ctxList | ctxDetail,
 			when: func(m *Model) bool {
-				t := m.top()
-				if t == nil || t.isChecks {
-					return false
+				if t := m.top(); t != nil {
+					return !t.isChecks &&
+						(t.item.Kind == data.KindPullRequest || m.linkedPR(t.item.Key) != nil)
 				}
-				return t.item.Kind == data.KindPullRequest || m.linkedPR(t.item.Key) != nil
+				return m.cursorHasGit()
 			}},
 		{id: "open-run", fixed: true, label: "1-9", group: grpGit,
 			desc: "Open the numbered workflow run in the browser", ctx: ctxDetail,
