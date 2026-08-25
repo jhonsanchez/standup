@@ -86,7 +86,7 @@ shortcuts available for the row you're on, and stays pinned to the bottom.
 
 | Key | Action |
 | --- | --- |
-| `1-9` | switch client tab |
+| `1-9` / `w` | switch client tab (`w` opens a picker that reveals names on demand) |
 | `tab` / `p` `i` | switch between Issues and Pull Requests |
 | `j` `k`, `ctrl+d/u/f/b`, `home` `end`/`G` | move cursor |
 | `→` / `←` | expand / collapse subtasks and PR groups (`←` on a child jumps to its parent) |
