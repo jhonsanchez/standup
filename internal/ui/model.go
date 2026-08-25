@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/atotto/clipboard"
+	"github.com/aymanbagabas/go-osc52/v2"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -1220,11 +1221,30 @@ func (m *Model) copyURL(url, what string) {
 		m.status = "nothing to copy"
 		return
 	}
-	if err := clipboard.WriteAll(url); err != nil {
-		m.status = "copy failed: " + err.Error()
+	// OSC52 reaches the *local* clipboard even over SSH/tmux; the system
+	// clipboard (pbcopy/xclip) is attempted too as a fallback.
+	oscErr := oscCopy(url)
+	sysErr := clipboard.WriteAll(url)
+	if oscErr != nil && sysErr != nil {
+		m.status = "copy failed — needs an OSC52-capable terminal, or xclip/xsel on Linux"
 		return
 	}
 	m.status = "copied " + what + " → " + url
+}
+
+// oscCopy writes the text to the terminal's clipboard via OSC52.
+func oscCopy(text string) error {
+	tty, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0)
+	if err != nil {
+		return err
+	}
+	defer tty.Close()
+	seq := osc52.New(text)
+	if os.Getenv("TMUX") != "" {
+		seq = seq.Tmux()
+	}
+	_, err = seq.WriteTo(tty)
+	return err
 }
 
 func (m Model) renderHeader(r row) string {
