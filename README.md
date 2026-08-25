@@ -125,7 +125,9 @@ clients:
 Press **`?`** anywhere for the full shortcuts menu — a which-key-style,
 context-aware overlay showing every currently available key with a full
 description, grouped into Navigate / Views / Item / Git & tools / Copy & open
-/ System. Press any key from the menu to close it *and* run it. The pinned
+/ System. Press any key from the menu to close it *and* run it. The menu also
+includes a **legend** decoding the row markers (PR link colors, merged
+state, branch markers, CI icons). The pinned
 footer stays minimal: the top hints for the current row plus `? help`.
 
 Highlights: `1-9`/`w` clients · `tab` views · `enter` detail · `→`/`←`

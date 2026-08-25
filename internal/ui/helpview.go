@@ -58,6 +58,21 @@ func (m Model) viewHelp() string {
 		blocks = append(blocks, lines)
 	}
 
+	// Legend: the row markers and icons, shown with their real styling.
+	legend := []string{
+		helpGroupStyle.Render("Legend"),
+		"  " + linkStyle.Render(githubGlyph+" repo#12") + " " + helpArrowStyle.Render("→") + " linked PR (purple: in review)",
+		"  " + lipgloss.NewStyle().Foreground(colGreen).Render(githubGlyph+" repo#12") + " " + helpArrowStyle.Render("→") + " linked PR approved",
+		"  " + lipgloss.NewStyle().Foreground(colOrange).Render(githubGlyph+" repo#12") + " " + helpArrowStyle.Render("→") + " linked PR: changes requested",
+		"  " + mergedStyle.Render(mergedGlyph+" repo#12") + " " + helpArrowStyle.Render("→") + " PR merged (icon = post-merge pipeline)",
+		"  " + subtaskStyle.Render(branchGlyph+" repo:branch") + " " + helpArrowStyle.Render("→") + " branch exists, no PR yet",
+		"  " + iconPass + " " + iconFail + " " + iconPending + " " + iconNone + " " + helpArrowStyle.Render("→") + " CI passing / failing / running / none",
+		"  " + iconClash + " " + helpArrowStyle.Render("→") + " merge conflicts",
+		"  [1/3] " + helpArrowStyle.Render("→") + " subtasks done/total (→ expands)",
+		"",
+	}
+	blocks = append(blocks, legend)
+
 	// Flow blocks into columns (greedy: shortest column first).
 	width := m.width
 	if width <= 0 {
