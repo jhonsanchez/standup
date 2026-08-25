@@ -1,0 +1,102 @@
+package ui
+
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
+
+var (
+	helpKeyStyle   = lipgloss.NewStyle().Foreground(colPurple)
+	helpArrowStyle = lipgloss.NewStyle().Foreground(colFaint)
+	helpGroupStyle = lipgloss.NewStyle().Bold(true).Foreground(colWhite)
+)
+
+// viewHelp renders the which-key style shortcuts menu: context-aware, full
+// descriptions, groups flowed into columns.
+func (m Model) viewHelp() string {
+	ctx := ctxList
+	ctxName := "list"
+	if len(m.detailStack) > 0 {
+		ctx = ctxDetail
+		ctxName = "detail"
+	}
+
+	// Collect visible bindings per group, preserving group order.
+	type entry struct{ label, desc string }
+	groups := map[string][]entry{}
+	labelW := 0
+	mp := &m
+	for _, b := range m.km.order {
+		if b.ctx&ctx == 0 {
+			continue
+		}
+		if b.when != nil && !b.when(mp) {
+			continue
+		}
+		l := b.keyLabel()
+		if w := lipgloss.Width(l); w > labelW {
+			labelW = w
+		}
+		groups[b.group] = append(groups[b.group], entry{l, b.desc})
+	}
+
+	// Render each group as a block of lines.
+	var blocks [][]string
+	for _, g := range groupOrder {
+		es := groups[g]
+		if len(es) == 0 {
+			continue
+		}
+		lines := []string{helpGroupStyle.Render(g)}
+		for _, e := range es {
+			pad := strings.Repeat(" ", labelW-lipgloss.Width(e.label))
+			lines = append(lines, "  "+pad+helpKeyStyle.Render(e.label)+" "+
+				helpArrowStyle.Render("→")+" "+e.desc)
+		}
+		lines = append(lines, "")
+		blocks = append(blocks, lines)
+	}
+
+	// Flow blocks into columns (greedy: shortest column first).
+	width := m.width
+	if width <= 0 {
+		width = 100
+	}
+	ncols := width / 62
+	if ncols < 1 {
+		ncols = 1
+	}
+	if ncols > 3 {
+		ncols = 3
+	}
+	cols := make([][]string, ncols)
+	for _, b := range blocks {
+		shortest := 0
+		for i := 1; i < ncols; i++ {
+			if len(cols[i]) < len(cols[shortest]) {
+				shortest = i
+			}
+		}
+		cols[shortest] = append(cols[shortest], b...)
+	}
+	colW := width/ncols - 2
+	var rendered []string
+	for _, c := range cols {
+		if len(c) == 0 {
+			continue
+		}
+		col := lipgloss.NewStyle().Width(colW).Render(strings.Join(c, "\n"))
+		rendered = append(rendered, col)
+	}
+	body := lipgloss.JoinHorizontal(lipgloss.Top, rendered...)
+
+	title := headerLabel.Render("Keyboard shortcuts") + subtaskStyle.Render("  ("+ctxName+" view — only currently available keys are shown)")
+	footer := helpKeyStyle.Render("<esc>") + helpArrowStyle.Render(" close   ") +
+		helpKeyStyle.Render("<any key>") + helpArrowStyle.Render(" close and run it")
+
+	content := title + "\n\n" + body
+	avail := m.termHeight() - 2
+	content = padToHeight(content, avail)
+	return lipgloss.NewStyle().Padding(0, 1).Render(content + "\n" + footer)
+}

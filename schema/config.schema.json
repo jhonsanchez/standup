@@ -5,12 +5,18 @@
   "description": "Configuration for standup — Jira + GitHub sprint dashboard. ${VAR} references are expanded from the environment.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["clients"],
+  "required": [
+    "clients"
+  ],
   "properties": {
     "refresh": {
       "type": "string",
       "description": "Background auto-refresh interval for the active client, as a Go duration (\"30s\", \"2m\") or \"off\". Default 30s; values under 10s are clamped.",
-      "examples": ["30s", "2m", "off"]
+      "examples": [
+        "30s",
+        "2m",
+        "off"
+      ]
     },
     "refresh_minutes": {
       "type": "integer",
@@ -18,7 +24,10 @@
     },
     "icons": {
       "type": "string",
-      "enum": ["nerd", "ascii"],
+      "enum": [
+        "nerd",
+        "ascii"
+      ],
       "description": "Marker glyph set. \"nerd\" (default) needs a Nerd Font such as JetBrainsMono Nerd Font; \"ascii\" uses plain-unicode fallbacks."
     },
     "link_pattern": {
@@ -37,12 +46,20 @@
         "agent": {
           "type": "string",
           "description": "AI coding agent for the `a` key: \"claude\" (default), \"copilot\", or any command line; {prompt} is replaced with the issue context (appended if absent).",
-          "examples": ["claude", "copilot", "aider --message {prompt}"]
+          "examples": [
+            "claude",
+            "copilot",
+            "aider --message {prompt}"
+          ]
         },
         "git_ui": {
           "type": "string",
           "description": "Git TUI for the `L` key. Default: lazygit.",
-          "examples": ["lazygit", "gitui", "tig"]
+          "examples": [
+            "lazygit",
+            "gitui",
+            "tig"
+          ]
         }
       }
     },
@@ -53,7 +70,9 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["name"],
+        "required": [
+          "name"
+        ],
         "properties": {
           "name": {
             "type": "string",
@@ -66,7 +85,9 @@
           "jira": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["base_url"],
+            "required": [
+              "base_url"
+            ],
             "properties": {
               "base_url": {
                 "type": "string",
@@ -74,7 +95,11 @@
               },
               "flavor": {
                 "type": "string",
-                "enum": ["cloud", "datacenter", "server"],
+                "enum": [
+                  "cloud",
+                  "datacenter",
+                  "server"
+                ],
                 "description": "\"cloud\" (email + API token, REST v3) or \"datacenter\"/\"server\" (PAT bearer auth, REST v2). Defaults to cloud when email is set, datacenter otherwise."
               },
               "email": {
@@ -117,18 +142,35 @@
               },
               "orgs": {
                 "type": "array",
-                "items": { "type": "string" },
+                "items": {
+                  "type": "string"
+                },
                 "description": "Limit searches to these organizations."
               },
               "repos": {
                 "type": "array",
-                "items": { "type": "string" },
+                "items": {
+                  "type": "string"
+                },
                 "description": "Limit searches to these owner/repo entries."
               }
             }
           }
         }
       }
+    },
+    "keys": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Remap shortcuts by action id (press ? in the app to see them). Ids: down, up, top, bottom, view-toggle, view-issues, view-prs, client-picker, detail, detail-alt, expand, collapse, toggle, groups-all, git-view, jump, checkout, git-ui, terminal, agent, copy, copy-linked, open, refresh, filter, edit-config, back, to-list, help, quit.",
+      "examples": [
+        {
+          "git-view": "G",
+          "filter": "s"
+        }
+      ]
     }
   }
 }

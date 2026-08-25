@@ -32,6 +32,9 @@ type Config struct {
 	// Useful when screen-sharing with one client. For full isolation run
 	// `standup <client>`, which loads only that client.
 	HideClients bool `yaml:"hide_clients,omitempty"`
+	// Keys remaps shortcuts by action id, e.g. {git-view: "G", filter: "s"}.
+	// Press ? in the app to see actions; ids are documented in the README.
+	Keys map[string]string `yaml:"keys,omitempty"`
 }
 
 // Commands configures the external tools launched from the detail view.
@@ -285,6 +288,9 @@ const starterConfig = `# yaml-language-server: $schema=https://raw.githubusercon
 # commands:
 #   agent: claude       # AI agent for the 'a' key: claude | copilot | custom
 #   git_ui: lazygit     # git TUI for the 'L' key
+# keys:                 # remap shortcuts by action id (press ? in the app)
+#   git-view: G
+#   filter: s
 
 clients:
   - name: work

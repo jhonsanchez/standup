@@ -93,6 +93,8 @@ type Model struct {
 	pick        []data.Item // jump-target picker overlay
 	pendingG    bool        // first g of a gg sequence (detail view)
 	clientPick  bool        // client-switcher overlay (list view)
+	showHelp    bool        // `?` shortcuts menu
+	km          *keymap
 }
 
 func New(cfg *config.Config) Model {
@@ -108,6 +110,8 @@ func New(cfg *config.Config) Model {
 			issueKeyRe = re
 		}
 	}
+	km := defaultKeymap()
+	warns := km.applyOverrides(cfg.Keys)
 	m := Model{
 		cfg:       cfg,
 		states:    make([]clientState, len(cfg.Clients)),
@@ -116,6 +120,10 @@ func New(cfg *config.Config) Model {
 		collapsed: map[string]bool{},
 		spin:      sp,
 		filter:    fi,
+		km:        km,
+	}
+	if len(warns) > 0 {
+		m.status = "⚠ " + strings.Join(warns, " · ")
 	}
 	if cfg.Icons != "ascii" && !NerdFontDetected() {
 		m.status = "⚠ no Nerd Font detected — icons may look broken; install JetBrainsMono Nerd Font or set `icons: ascii`"
@@ -243,6 +251,10 @@ func (m Model) reloadConfig(msg configEditedMsg) (tea.Model, tea.Cmd) {
 		if re, err := regexp.Compile(newCfg.LinkPattern); err == nil {
 			issueKeyRe = re
 		}
+	}
+	m.km = defaultKeymap()
+	if warns := m.km.applyOverrides(newCfg.Keys); len(warns) > 0 {
+		m.status = "⚠ " + strings.Join(warns, " · ")
 	}
 	m.cfg = newCfg
 	m.states = make([]clientState, len(newCfg.Clients))
@@ -391,6 +403,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateDetail(msg)
 
 	case tea.KeyMsg:
+		if m.showHelp {
+			// Which-key behavior: esc/? closes; any other key closes AND runs.
+			m.showHelp = false
+			if msg.String() == "esc" || m.km.Is(msg, "help") {
+				return m, nil
+			}
+		}
 		if len(m.detailStack) > 0 {
 			return m.updateDetail(msg)
 		}
@@ -438,17 +457,21 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	switch msg.String() {
-	case "q", "ctrl+c":
+	switch {
+	case m.km.Is(msg, "quit"):
 		return m, tea.Quit
 
-	case "w":
+	case m.km.Is(msg, "help"):
+		m.showHelp = true
+		return m, nil
+
+	case m.km.Is(msg, "client-picker"):
 		if len(m.cfg.Clients) > 1 {
 			m.clientPick = true
 		}
 		return m, nil
 
-	case "e":
+	case m.km.Is(msg, "edit-config"):
 		// Edit the config in $EDITOR; hot-reload on return.
 		editor := os.Getenv("EDITOR")
 		if editor == "" {
@@ -462,10 +485,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return configEditedMsg{err: err}
 		})
 
-	case "tab", "shift+tab":
+	case m.km.Is(msg, "view-toggle"):
 		m.view = 1 - m.view
 		return m, nil
-	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+	case msg.String() >= "1" && msg.String() <= "9":
 		n := int(msg.String()[0] - '1')
 		if n < len(m.cfg.Clients) {
 			m.client = n
@@ -473,14 +496,14 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "p":
+	case m.km.Is(msg, "view-prs"):
 		m.view = viewPRs
 		return m, nil
-	case "i":
+	case m.km.Is(msg, "view-issues"):
 		m.view = viewIssues
 		return m, nil
 
-	case "l", "right":
+	case m.km.Is(msg, "expand"):
 		// Expand, tree-style.
 		if len(rows) == 0 {
 			return m, nil
@@ -496,7 +519,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "h", "left":
+	case m.km.Is(msg, "collapse"):
 		// Collapse; on a child row, jump back to its parent.
 		if len(rows) == 0 {
 			return m, nil
@@ -519,23 +542,23 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "j", "down":
+	case m.km.Is(msg, "down"):
 		if cur < len(rows)-1 {
 			m.cursor[m.key()] = cur + 1
 		}
 		return m, nil
-	case "k", "up":
+	case m.km.Is(msg, "up"):
 		if cur > 0 {
 			m.cursor[m.key()] = cur - 1
 		}
 		return m, nil
-	case "home":
+	case m.km.Is(msg, "top"):
 		m.cursor[m.key()] = 0
 		return m, nil
-	case "G", "end":
+	case m.km.Is(msg, "bottom"):
 		m.cursor[m.key()] = len(rows) - 1
 		return m, nil
-	case "ctrl+d", "ctrl+u", "ctrl+f", "ctrl+b", "pgdown", "pgup":
+	case m.km.Is(msg, "page"):
 		page := m.termHeight() - 8
 		if page < 4 {
 			page = 4
@@ -559,7 +582,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cursor[m.key()] = next
 		return m, nil
 
-	case "y", "Y":
+	case m.km.Is(msg, "copy"), m.km.Is(msg, "copy-linked"):
 		// y: copy this row's link · Y: copy the counterpart's (issue⇄PR).
 		if len(rows) == 0 || rows[cur].kind == rowHeader {
 			return m, nil
@@ -571,7 +594,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			s := it.Subtasks[r.subtask]
 			key, url = s.Key, s.URL
 		}
-		if msg.String() == "Y" {
+		if m.km.Is(msg, "copy-linked") {
 			if cp := m.counterpart(it, key); cp != nil {
 				m.copyURL(cp.URL, cp.Key)
 			} else {
@@ -582,7 +605,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "g":
+	case m.km.Is(msg, "git-view"):
 		// Git view: jump straight to the linked PR's detail.
 		if len(rows) == 0 || rows[cur].kind == rowHeader {
 			return m, nil
@@ -602,7 +625,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.status = "no open PR references " + key
 		return m, nil
 
-	case " ":
+	case m.km.Is(msg, "toggle"):
 		// Space toggles: PR groups, Jira subtask expansion.
 		if len(rows) == 0 {
 			return m, nil
@@ -619,7 +642,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "enter":
+	case m.km.Is(msg, "detail"), m.km.Is(msg, "detail-alt"):
 		// Enter always opens detail (headers toggle their group).
 		if len(rows) == 0 {
 			return m, nil
@@ -644,13 +667,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m.openDetail(it)
 
-	case "d":
-		if len(rows) == 0 || rows[cur].kind == rowHeader {
-			return m, nil
-		}
-		return m.openDetail(m.items()[rows[cur].item])
-
-	case "z":
+	case m.km.Is(msg, "groups-all"):
 		// Toggle all PR groups at once.
 		if m.view == viewPRs {
 			any := false
@@ -665,13 +682,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "o":
+	case m.km.Is(msg, "open"):
 		if len(rows) == 0 || rows[cur].kind == rowHeader {
 			return m, nil
 		}
 		return m, m.open(rows, cur)
 
-	case "r":
+	case m.km.Is(msg, "refresh"):
 		st := &m.states[m.client]
 		if !st.loading {
 			st.loading = true
@@ -679,12 +696,12 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "/":
+	case m.km.Is(msg, "filter"):
 		m.filterOn = true
 		m.filter.Focus()
 		return m, textinput.Blink
 
-	case "esc":
+	case msg.String() == "esc":
 		m.filter.SetValue("")
 		return m, nil
 	}
@@ -742,6 +759,9 @@ func padToHeight(s string, h int) string {
 }
 
 func (m Model) View() string {
+	if m.showHelp {
+		return m.viewHelp()
+	}
 	if len(m.detailStack) > 0 {
 		return m.viewDetail()
 	}
@@ -820,20 +840,13 @@ func (m Model) View() string {
 	return head + body + "\n" + footer
 }
 
-// listHelp shows only the shortcuts available for the current row.
+// listHelp is the minimal pinned footer: the highest-value hints for the
+// current row plus the permanent `? help`. The full menu lives behind `?`.
 func (m Model) listHelp() string {
-	var parts []string
 	if m.clientPick {
 		return "1-9 pick · esc cancel"
 	}
-	if len(m.cfg.Clients) > 1 {
-		if m.cfg.HideClients {
-			parts = append(parts, "w client")
-		} else {
-			parts = append(parts, fmt.Sprintf("1-%d/w client", len(m.cfg.Clients)))
-		}
-	}
-	parts = append(parts, "tab view", "j/k move")
+	var parts []string
 	rows := m.rows()
 	if len(rows) > 0 {
 		cur := m.cursor[m.key()]
@@ -843,41 +856,28 @@ func (m Model) listHelp() string {
 		switch r := rows[cur]; r.kind {
 		case rowHeader:
 			if m.collapsed[m.bucketKey(r.bucket)] {
-				parts = append(parts, "enter/→ open")
+				parts = append(parts, "enter open group")
 			} else {
-				parts = append(parts, "enter/← close")
+				parts = append(parts, "enter close group")
 			}
-			parts = append(parts, "z all groups")
-		case rowSubtask:
-			parts = append(parts, "enter detail", "← parent")
-			it := m.items()[r.item]
-			if m.linkedPR(it.Subtasks[r.subtask].Key) != nil {
-				parts = append(parts, "g git", "y/Y copy")
-			} else {
-				parts = append(parts, "y copy")
-			}
-			parts = append(parts, "o browser")
-		case rowItem:
-			it := m.items()[r.item]
-			if it.Kind == data.KindJiraIssue && len(it.Subtasks) > 0 {
-				if m.expand[it.Key] {
-					parts = append(parts, "← close subtasks")
-				} else {
-					parts = append(parts, "→ subtasks")
+		default:
+			parts = append(parts, m.km.label("detail")+" detail")
+			if r.kind == rowItem {
+				it := m.items()[r.item]
+				if it.Kind == data.KindJiraIssue && len(it.Subtasks) > 0 {
+					if m.expand[it.Key] {
+						parts = append(parts, "← close")
+					} else {
+						parts = append(parts, "→ subtasks")
+					}
 				}
-			} else if m.view == viewPRs {
-				parts = append(parts, "← close group")
 			}
-			parts = append(parts, "enter detail")
-			if it.Kind == data.KindPullRequest || m.linkedPR(it.Key) != nil {
-				parts = append(parts, "g git", "y/Y copy")
-			} else {
-				parts = append(parts, "y copy")
+			if (&m).cursorHasGit() {
+				parts = append(parts, m.km.label("git-view")+" git")
 			}
-			parts = append(parts, "o browser")
 		}
 	}
-	parts = append(parts, "r refresh", "/ filter", "e config", "q quit")
+	parts = append(parts, m.km.label("help")+" help")
 	return strings.Join(parts, " · ")
 }
 

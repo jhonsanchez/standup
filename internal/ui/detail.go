@@ -218,32 +218,35 @@ func (m Model) updateDetail(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		switch msg.String() {
-		case "esc", "backspace":
+		switch {
+		case m.km.Is(msg, "back"):
 			m.detailStack = m.detailStack[:len(m.detailStack)-1]
 			m.status = ""
 			return m, nil
-		case "q":
+		case m.km.Is(msg, "to-list"):
 			m.detailStack = nil
 			m.status = ""
 			return m, nil
-		case "ctrl+c":
+		case m.km.Is(msg, "help"):
+			m.showHelp = true
+			return m, nil
+		case msg.String() == "ctrl+c":
 			return m, tea.Quit
-		case "j", "down":
+		case m.km.Is(msg, "down"):
 			m.top().scroll++
 			return m, nil
-		case "k", "up":
+		case m.km.Is(msg, "up"):
 			if t := m.top(); t.scroll > 0 {
 				t.scroll--
 			}
 			return m, nil
-		case "g":
+		case msg.String() == "g":
 			m.pendingG = true
 			return m, nil
-		case "G", "end":
+		case m.km.Is(msg, "bottom"):
 			m.top().scroll = 1 << 30 // clamped to bottom at render
 			return m, nil
-		case "ctrl+d", "ctrl+u", "ctrl+f", "ctrl+b", "pgdown", "pgup":
+		case m.km.Is(msg, "page"):
 			page := m.termHeight() - 8
 			if page < 4 {
 				page = 4
@@ -263,18 +266,18 @@ func (m Model) updateDetail(msg tea.Msg) (tea.Model, tea.Cmd) {
 				t.scroll = 0
 			}
 			return m, nil
-		case "home":
+		case m.km.Is(msg, "top"):
 			m.top().scroll = 0
 			return m, nil
-		case "o", "enter":
+		case m.km.Is(msg, "open"), msg.String() == "enter":
 			it := m.top().item
 			m.status = "opened " + it.URL
 			return m, openURLCmd(it.URL)
-		case "y":
+		case m.km.Is(msg, "copy"):
 			it := m.top().item
 			m.copyURL(it.URL, it.Key)
 			return m, nil
-		case "Y":
+		case m.km.Is(msg, "copy-linked"):
 			it := m.top().item
 			if cp := m.counterpart(it, it.Key); cp != nil {
 				m.copyURL(cp.URL, cp.Key)
@@ -282,7 +285,7 @@ func (m Model) updateDetail(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.status = "no linked item for " + it.Key
 			}
 			return m, nil
-		case "p":
+		case m.km.Is(msg, "jump"):
 			targets := m.jumpTargets()
 			switch len(targets) {
 			case 0:
@@ -298,17 +301,17 @@ func (m Model) updateDetail(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.pick = targets
 				return m, nil
 			}
-		case "c":
+		case m.km.Is(msg, "checkout"):
 			return m, m.checkoutCmd()
-		case "L":
+		case m.km.Is(msg, "git-ui"):
 			return m, m.execInRepo("git UI", m.cfg.GitUICommand())
-		case "t":
+		case m.km.Is(msg, "terminal"):
 			shell := os.Getenv("SHELL")
 			if shell == "" {
 				shell = "sh"
 			}
 			return m, m.execInRepo("terminal", shell)
-		case "a":
+		case m.km.Is(msg, "agent"):
 			it := m.top().item
 			prompt := fmt.Sprintf("I'm working on %s: %s (%s). Help me with it.", it.Key, it.Title, it.URL)
 			argv := m.cfg.AgentCommand(prompt)
@@ -609,30 +612,21 @@ func (m Model) viewDetail() string {
 		strings.Join(pinned, "\n") + "\n" + body + "\n" + footer)
 }
 
-// detailHelp shows only the shortcuts available for the current detail.
+// detailHelp is the minimal pinned footer for detail views; the full menu
+// lives behind `?`.
 func (m Model) detailHelp() string {
 	if len(m.pick) > 0 {
 		return "1-9 pick · esc cancel"
 	}
-	parts := []string{"esc back", "q list", "j/k ^d/^u gg/G scroll", "o browser"}
+	parts := []string{m.km.label("back") + " back"}
 	if targets := m.jumpTargets(); len(targets) > 0 {
 		if m.top().item.Kind == data.KindJiraIssue {
-			parts = append(parts, "p → PR")
+			parts = append(parts, m.km.label("jump")+" → PR")
 		} else {
-			parts = append(parts, "p → issue")
-		}
-		parts = append(parts, "y/Y copy")
-	} else {
-		parts = append(parts, "y copy")
-	}
-	if repo, branch, ok := m.detailTarget(); ok {
-		if _, exists := m.cfg.Clients[m.client].RepoDir(repo); exists {
-			if branch != "" {
-				parts = append(parts, "c checkout")
-			}
-			parts = append(parts, "L lazygit", "t terminal", "a claude")
+			parts = append(parts, m.km.label("jump")+" → issue")
 		}
 	}
+	parts = append(parts, m.km.label("help")+" help")
 	return strings.Join(parts, " · ")
 }
 

@@ -122,41 +122,34 @@ clients:
 
 ## Keys
 
-The footer help bar is context-sensitive — it always lists exactly the
-shortcuts available for the row you're on, and stays pinned to the bottom.
+Press **`?`** anywhere for the full shortcuts menu — a which-key-style,
+context-aware overlay showing every currently available key with a full
+description, grouped into Navigate / Views / Item / Git & tools / Copy & open
+/ System. Press any key from the menu to close it *and* run it. The pinned
+footer stays minimal: the top hints for the current row plus `? help`.
 
-| Key | Action |
-| --- | --- |
-| `1-9` / `w` | switch client tab (`w` opens a picker that reveals names on demand) |
-| `tab` / `p` `i` | switch between Issues and Pull Requests |
-| `j` `k`, `ctrl+d/u/f/b`, `home` `end`/`G` | move cursor |
-| `→` / `←` | expand / collapse subtasks and PR groups (`←` on a child jumps to its parent) |
-| `enter` | open detail view (on a group header: toggle the group) |
-| `g` | git view: open the linked PR's detail for the issue/subtask under the cursor |
-| `y` / `Y` | copy the item's link / its counterpart's link (issue⇄PR) |
-| `z` | collapse/expand all PR groups |
-| `o` | open item in browser |
-| `r` | refresh current client |
-| `e` | edit the config in `$EDITOR` — hot-reloads on save (a broken file keeps the old config and shows the error) |
-| `/` | filter (by key, title, or status); `esc` clears |
-| `q` | quit |
+Highlights: `1-9`/`w` clients · `tab` views · `enter` detail · `→`/`←`
+expand/collapse · `g` git view · `y`/`Y` copy links · `o` browser ·
+`r` refresh · `/` filter · `e` edit config · vim scrolling (`j/k`,
+`ctrl+d/u/f/b`, `gg`/`G`) — and in detail views: `p` jump issue⇄PR,
+`c` checkout, `L` lazygit, `t` terminal, `a` AI agent, `esc` back.
 
-In the detail view the title (`KEY — Title`) stays pinned at the top while
-the content scrolls vim-style (`j/k`, `ctrl+d`/`ctrl+u`, `ctrl+f`/`ctrl+b`,
-`gg` top, `G` bottom). `o` opens in browser, `p` jumps between a Jira issue
-and its linked PR(s) — details stack, so `esc` steps back through them (with
-a breadcrumb) and `q` returns to the list. Also — resolved against the
-item's local clone (the PR's repo, or the issue's linked PR/branch):
+### Custom keybindings
 
-| Key | Action |
-| --- | --- |
-| `c` | checkout the branch (`fetch` + `switch`, creates tracking branch) |
-| `L` | open your git TUI (default **lazygit**) in the repo |
-| `t` | open a shell in the repo |
-| `a` | launch your AI agent (default **Claude Code**) pre-prompted with the issue/PR |
+Remap any action by id in the config:
 
-`L`/`t`/`a` suspend the TUI and hand you the full terminal; quitting the
-program drops you back into standup exactly where you were.
+```yaml
+keys:
+  git-view: G      # open linked PR with G instead of g
+  filter: s
+```
+
+Action ids: `down up top bottom` · `view-toggle view-issues view-prs
+client-picker` · `detail detail-alt expand collapse toggle groups-all` ·
+`git-view jump checkout git-ui terminal agent` · `copy copy-linked open` ·
+`refresh filter edit-config back to-list help quit`. Unknown ids and key
+conflicts are reported at startup; fixed keys (digits, page scrolling) are
+not remappable. Arrow keys, `ctrl+c`, and other aliases always keep working.
 
 ## Views
 
