@@ -55,4 +55,32 @@ brews:
 release:
   footer: |
     ---
-    Install: `brew install jhonsanchez/tap/standup` · `go install github.com/jhonsanchez/standup@{{.Tag}}`
+    ## Install
+
+    **macOS / Linux — Homebrew**
+    ```sh
+    brew install jhonsanchez/tap/standup
+    ```
+
+    **Linux — direct binary** (use `arm64` on ARM machines)
+    ```sh
+    curl -sL https://github.com/jhonsanchez/standup/releases/download/{{ .Tag }}/standup_{{ .Version }}_linux_amd64.tar.gz | tar xz standup
+    sudo install standup /usr/local/bin/
+    ```
+
+    **macOS — direct binary** (Apple Silicon: `arm64`, Intel: `amd64`)
+    ```sh
+    curl -sL https://github.com/jhonsanchez/standup/releases/download/{{ .Tag }}/standup_{{ .Version }}_darwin_arm64.tar.gz | tar xz standup
+    sudo install standup /usr/local/bin/
+    ```
+
+    **Windows** — download `standup_{{ .Version }}_windows_amd64.zip` (or `arm64`) from the assets below, unzip, and put `standup.exe` on your `PATH`.
+
+    **Go**
+    ```sh
+    go install github.com/jhonsanchez/standup@{{ .Tag }}
+    ```
+
+    **Already installed?** `standup upgrade` (or `brew upgrade standup`).
+
+    Optional dependencies (Nerd Font, `gh`, `lazygit`, `xclip`) light up extra features — see the [README](https://github.com/jhonsanchez/standup#dependencies), and run `standup doctor` to check your setup.
