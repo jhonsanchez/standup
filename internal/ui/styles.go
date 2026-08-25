@@ -70,15 +70,21 @@ var (
 var (
 	branchGlyph = ""
 	githubGlyph = ""
+	mergedGlyph = "\ue727" // nerd-font git-merge
 )
+
+// mergedStyle is GitHub's "merged" purple.
+var mergedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("170"))
 
 func setIcons(mode string) {
 	if mode == "ascii" {
 		branchGlyph = "⎇"
 		githubGlyph = "⇄"
+		mergedGlyph = "⇌"
 	} else {
-		branchGlyph = ""
+		branchGlyph = "\ue0a0"
 		githubGlyph = "\uf408"
+		mergedGlyph = "\ue727"
 	}
 }
 

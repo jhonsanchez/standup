@@ -17,32 +17,35 @@ import (
 	"github.com/jhonsanchez/standup/internal/jirafmt"
 )
 
-// Fetch returns open PRs (authored + review-requested, with CI/review detail
-// via GraphQL) and open issues assigned to the user (via REST search).
-func Fetch(ctx context.Context, g *config.GitHub) (prs []data.Item, issues []data.Item, err error) {
+// Fetch returns open PRs (authored + review-requested), recently merged PRs
+// (for issue linking and post-merge CI), and open issues assigned to the user.
+func Fetch(ctx context.Context, g *config.GitHub) (prs, merged, issues []data.Item, err error) {
 	token, err := g.ResolveToken()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	login, err := viewerLogin(ctx, g, token)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	scopes := scopeQualifiers(g)
 	seen := map[string]bool{}
+	since := time.Now().AddDate(0, 0, -30).Format("2006-01-02")
 
 	for _, scope := range scopes {
 		authoredQ := strings.TrimSpace(fmt.Sprintf("is:open is:pr archived:false author:%s %s", login, scope))
 		reviewQ := strings.TrimSpace(fmt.Sprintf("is:open is:pr archived:false review-requested:%s %s", login, scope))
+		mergedQ := strings.TrimSpace(fmt.Sprintf("is:pr is:merged archived:false merged:>=%s %s", since, scope))
 
 		var resp struct {
 			Authored searchNodes `json:"authored"`
 			Review   searchNodes `json:"review"`
+			MergedPR searchNodes `json:"mergedPRs"`
 		}
-		vars := map[string]any{"authored": authoredQ, "review": reviewQ}
+		vars := map[string]any{"authored": authoredQ, "review": reviewQ, "merged": mergedQ}
 		if err := gql(ctx, g, token, prSearchQuery, vars, &resp); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		for _, n := range resp.Review.Nodes {
 			if n.URL == "" || seen[n.URL] {
@@ -58,16 +61,26 @@ func Fetch(ctx context.Context, g *config.GitHub) (prs []data.Item, issues []dat
 			seen[n.URL] = true
 			prs = append(prs, toPRItem(n, false))
 		}
+		for _, n := range resp.MergedPR.Nodes {
+			if n.URL == "" || seen[n.URL] {
+				continue
+			}
+			seen[n.URL] = true
+			merged = append(merged, toPRItem(n, false))
+		}
 	}
 	sort.SliceStable(prs, func(a, b int) bool {
 		return prs[a].Updated.After(prs[b].Updated)
+	})
+	sort.SliceStable(merged, func(a, b int) bool {
+		return merged[a].MergedAt.After(merged[b].MergedAt)
 	})
 
 	for _, scope := range scopes {
 		q := strings.TrimSpace("is:open is:issue assignee:@me archived:false " + scope)
 		res, err := restSearch(ctx, g, token, q)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		for _, it := range res.Items {
 			if seen[it.HTMLURL] {
@@ -86,19 +99,22 @@ func Fetch(ctx context.Context, g *config.GitHub) (prs []data.Item, issues []dat
 			})
 		}
 	}
-	return prs, issues, nil
+	return prs, merged, issues, nil
 }
 
 // ---- GraphQL ----
 
 const prSearchQuery = `
-query($authored: String!, $review: String!) {
+query($authored: String!, $review: String!, $merged: String!) {
   authored: search(query: $authored, type: ISSUE, first: 50) { nodes { ...pr } }
   review: search(query: $review, type: ISSUE, first: 50) { nodes { ...pr } }
+  mergedPRs: search(query: $merged, type: ISSUE, first: 50) { nodes { ...pr } }
 }
 fragment pr on PullRequest {
   number title url isDraft updatedAt additions deletions
-  mergeable reviewDecision totalCommentsCount headRefName
+  mergeable reviewDecision totalCommentsCount headRefName headRefOid
+  merged mergedAt
+  mergeCommit { oid statusCheckRollup { state } }
   author { login }
   repository { nameWithOwner }
   reviewRequests { totalCount }
@@ -121,7 +137,16 @@ type prNode struct {
 	ReviewDecision     string    `json:"reviewDecision"`
 	TotalCommentsCount int       `json:"totalCommentsCount"`
 	HeadRefName        string    `json:"headRefName"`
-	Author             struct {
+	HeadRefOid         string    `json:"headRefOid"`
+	Merged             bool      `json:"merged"`
+	MergedAt           time.Time `json:"mergedAt"`
+	MergeCommit        *struct {
+		Oid               string `json:"oid"`
+		StatusCheckRollup *struct {
+			State string `json:"state"`
+		} `json:"statusCheckRollup"`
+	} `json:"mergeCommit"`
+	Author struct {
 		Login string `json:"login"`
 	} `json:"author"`
 	Repository struct {
@@ -171,6 +196,15 @@ func toPRItem(n prNode, reviewRequested bool) data.Item {
 		Mergeable:       n.Mergeable,
 		Branch:          n.HeadRefName,
 		ReviewDecision:  n.ReviewDecision,
+		HeadSHA:         n.HeadRefOid,
+		Merged:          n.Merged,
+		MergedAt:        n.MergedAt,
+	}
+	if n.MergeCommit != nil {
+		it.MergeSHA = n.MergeCommit.Oid
+		if n.MergeCommit.StatusCheckRollup != nil {
+			it.MergeCIState = n.MergeCommit.StatusCheckRollup.State
+		}
 	}
 	if it.Draft {
 		it.Status = "draft"
@@ -336,6 +370,107 @@ func Ping(ctx context.Context, g *config.GitHub) (string, error) {
 		return "", err
 	}
 	return viewerLogin(ctx, g, token)
+}
+
+const checksQuery = `
+query($owner: String!, $name: String!, $oid: GitObjectID!) {
+  repository(owner: $owner, name: $name) {
+    object(oid: $oid) {
+      ... on Commit {
+        checkSuites(first: 20) {
+          nodes {
+            app { name }
+            status conclusion
+            workflowRun { url createdAt workflow { name } }
+            checkRuns(first: 30) {
+              nodes { name status conclusion startedAt completedAt detailsUrl }
+            }
+          }
+        }
+      }
+    }
+  }
+}`
+
+// FetchChecks returns the workflow runs / check suites on one commit.
+func FetchChecks(ctx context.Context, g *config.GitHub, repo, sha string) ([]data.WorkflowRun, error) {
+	token, err := g.ResolveToken()
+	if err != nil {
+		return nil, err
+	}
+	owner, name, ok := strings.Cut(repo, "/")
+	if !ok {
+		return nil, fmt.Errorf("bad repo %q", repo)
+	}
+	var resp struct {
+		Repository struct {
+			Object struct {
+				CheckSuites struct {
+					Nodes []struct {
+						App struct {
+							Name string `json:"name"`
+						} `json:"app"`
+						Status      string `json:"status"`
+						Conclusion  string `json:"conclusion"`
+						WorkflowRun *struct {
+							URL       string    `json:"url"`
+							CreatedAt time.Time `json:"createdAt"`
+							Workflow  struct {
+								Name string `json:"name"`
+							} `json:"workflow"`
+						} `json:"workflowRun"`
+						CheckRuns struct {
+							Nodes []struct {
+								Name        string    `json:"name"`
+								Status      string    `json:"status"`
+								Conclusion  string    `json:"conclusion"`
+								StartedAt   time.Time `json:"startedAt"`
+								CompletedAt time.Time `json:"completedAt"`
+								DetailsURL  string    `json:"detailsUrl"`
+							} `json:"nodes"`
+						} `json:"checkRuns"`
+					} `json:"nodes"`
+				} `json:"checkSuites"`
+			} `json:"object"`
+		} `json:"repository"`
+	}
+	vars := map[string]any{"owner": owner, "name": name, "oid": sha}
+	if err := gql(ctx, g, token, checksQuery, vars, &resp); err != nil {
+		return nil, err
+	}
+	var runs []data.WorkflowRun
+	for _, s := range resp.Repository.Object.CheckSuites.Nodes {
+		r := data.WorkflowRun{
+			Name:       s.App.Name,
+			Status:     s.Status,
+			Conclusion: s.Conclusion,
+		}
+		if s.WorkflowRun != nil {
+			r.Name = s.WorkflowRun.Workflow.Name
+			r.URL = s.WorkflowRun.URL
+			r.Created = s.WorkflowRun.CreatedAt
+		}
+		for _, j := range s.CheckRuns.Nodes {
+			if r.URL == "" && j.DetailsURL != "" {
+				r.URL = j.DetailsURL
+			}
+			r.Jobs = append(r.Jobs, data.CheckRun{
+				Name:       j.Name,
+				Status:     j.Status,
+				Conclusion: j.Conclusion,
+				URL:        j.DetailsURL,
+				Started:    j.StartedAt,
+				Completed:  j.CompletedAt,
+			})
+		}
+		// Skip placeholder suites: installed apps that never actually ran
+		// anything on this commit (no workflow run, no jobs).
+		if s.WorkflowRun == nil && len(r.Jobs) == 0 {
+			continue
+		}
+		runs = append(runs, r)
+	}
+	return runs, nil
 }
 
 func viewerLogin(ctx context.Context, g *config.GitHub, token string) (string, error) {

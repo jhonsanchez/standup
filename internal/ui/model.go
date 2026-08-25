@@ -44,6 +44,7 @@ type clientState struct {
 	loading   bool
 	fetchedAt time.Time
 	prs       []data.Item
+	merged    []data.Item // recently merged, for issue linking + post-merge CI
 	issues    []data.Item
 	branches  []data.BranchRef
 	errs      []string
@@ -52,6 +53,7 @@ type clientState struct {
 type fetchedMsg struct {
 	client   int
 	prs      []data.Item
+	merged   []data.Item
 	issues   []data.Item
 	branches []data.BranchRef
 	errs     []string
@@ -195,7 +197,7 @@ func (m Model) fetch(idx int) tea.Cmd {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				prs, issues, err := github.Fetch(ctx, c.GitHub)
+				prs, merged, issues, err := github.Fetch(ctx, c.GitHub)
 				mu.Lock()
 				defer mu.Unlock()
 				if err != nil {
@@ -203,6 +205,7 @@ func (m Model) fetch(idx int) tea.Cmd {
 					return
 				}
 				msg.prs = prs
+				msg.merged = merged
 				msg.issues = append(msg.issues, issues...)
 			}()
 		}
@@ -378,6 +381,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		st.loaded = true
 		st.fetchedAt = time.Now()
 		st.prs = msg.prs
+		st.merged = msg.merged
 		st.issues = msg.issues
 		st.branches = msg.branches
 		st.errs = msg.errs
@@ -998,10 +1002,16 @@ func (m Model) renderItem(it data.Item) string {
 }
 
 // linkedPRs returns fetched PRs for this client that reference the Jira key
-// in their title or branch name.
+// in their title or branch name — open PRs first, then recently merged ones.
 func (m Model) linkedPRs(key string) []data.Item {
 	var out []data.Item
-	for _, p := range m.states[m.client].prs {
+	st := m.states[m.client]
+	for _, p := range st.prs {
+		if strings.Contains(p.Title, key) || strings.Contains(p.Branch, key) {
+			out = append(out, p)
+		}
+	}
+	for _, p := range st.merged {
 		if strings.Contains(p.Title, key) || strings.Contains(p.Branch, key) {
 			out = append(out, p)
 		}
@@ -1022,13 +1032,6 @@ func gitMarker(pr *data.Item) string {
 	if pr == nil {
 		return ""
 	}
-	style := linkStyle
-	switch pr.ReviewDecision {
-	case "APPROVED":
-		style = lipgloss.NewStyle().Foreground(colGreen)
-	case "CHANGES_REQUESTED":
-		style = lipgloss.NewStyle().Foreground(colOrange)
-	}
 	repo := pr.Repo
 	if i := strings.LastIndex(repo, "/"); i >= 0 {
 		repo = repo[i+1:]
@@ -1036,6 +1039,17 @@ func gitMarker(pr *data.Item) string {
 	num := ""
 	if i := strings.LastIndex(pr.Key, "#"); i >= 0 {
 		num = pr.Key[i:]
+	}
+	if pr.Merged {
+		// Merged: magenta merge glyph + the merge commit's (post-merge) CI.
+		return mergedStyle.Render(mergedGlyph+" "+repo+num) + ciIcon(pr.MergeCIState)
+	}
+	style := linkStyle
+	switch pr.ReviewDecision {
+	case "APPROVED":
+		style = lipgloss.NewStyle().Foreground(colGreen)
+	case "CHANGES_REQUESTED":
+		style = lipgloss.NewStyle().Foreground(colOrange)
 	}
 	return style.Render(githubGlyph+" "+repo+num) +
 		ciIcon(pr.CIState) + strings.TrimRight(conflictIcon(pr.Mergeable), " ")

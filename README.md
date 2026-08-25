@@ -159,7 +159,10 @@ not remappable. Arrow keys, `ctrl+c`, and other aliases always keep working.
   subtasks show a ` repo#n` marker (colored by review state, with
   CI/conflict icons) when an open PR references their key, or a dim
   ` repo:branch` marker when a local/remote branch matches but no PR
-  exists yet.
+  exists yet. Once the PR merges, the marker turns **purple** with the
+  merge glyph and shows the **post-merge** pipeline result — the checks that
+  ran on the merge commit (deploys, main-branch GHA) — so a merge that broke
+  the target branch is visible right on the issue.
 - **Pull Requests**: PRs you authored plus PRs where your review is
   requested, grouped GitKraken-style into action buckets: *Needs My Review,
   Waiting for Review, Ready to Merge, Resolve Conflicts, Failing CI,

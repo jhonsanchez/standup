@@ -46,6 +46,11 @@ type Item struct {
 	Mergeable      string // "MERGEABLE" | "CONFLICTING" | "UNKNOWN" | ""
 	Branch         string // PR head branch
 	ReviewDecision string // "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | ""
+	HeadSHA        string
+	Merged         bool
+	MergedAt       time.Time
+	MergeSHA       string // merge commit on the target branch
+	MergeCIState   string // statusCheckRollup of the merge commit (post-merge GHA)
 
 	Description string // Jira description (plain text)
 }
@@ -64,6 +69,27 @@ type PRDetail struct {
 type CheckStatus struct {
 	Name  string
 	State string // SUCCESS, FAILURE, PENDING, …
+}
+
+// WorkflowRun is one check suite on a commit — a GitHub Actions workflow run
+// or an external app's suite — with its jobs.
+type WorkflowRun struct {
+	Name       string
+	URL        string
+	Status     string // QUEUED | IN_PROGRESS | COMPLETED
+	Conclusion string // SUCCESS | FAILURE | CANCELLED | SKIPPED | …
+	Created    time.Time
+	Jobs       []CheckRun
+}
+
+// CheckRun is one job inside a workflow run.
+type CheckRun struct {
+	Name       string
+	Status     string
+	Conclusion string
+	URL        string
+	Started    time.Time
+	Completed  time.Time
 }
 
 // BranchRef is a branch found in a local clone (used to surface work that

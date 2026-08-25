@@ -26,6 +26,12 @@ type detailState struct {
 	loading  bool
 	err      string
 	scroll   int
+
+	// GHA checks window (pushed with C).
+	isChecks   bool
+	checksSHA  string
+	checksKind string // "pre-merge" | "post-merge"
+	runs       []data.WorkflowRun
 }
 
 type prDetailMsg struct {
@@ -39,6 +45,16 @@ type jiraDetailMsg struct {
 	item     data.Item
 	comments []data.Comment
 	err      error
+}
+
+type checksMsg struct {
+	url  string
+	runs []data.WorkflowRun
+	err  error
+}
+
+type checksTickMsg struct {
+	url string
 }
 
 type checkoutMsg struct {
@@ -111,6 +127,46 @@ func (m *Model) openDetail(it data.Item) (tea.Model, tea.Cmd) {
 	return *m, cmd
 }
 
+// openChecks pushes the GHA checks window for a PR onto the detail stack.
+func (m *Model) openChecks(pr data.Item) (tea.Model, tea.Cmd) {
+	sha, kind := pr.HeadSHA, "pre-merge"
+	if pr.Merged && pr.MergeSHA != "" {
+		sha, kind = pr.MergeSHA, "post-merge"
+	}
+	if sha == "" {
+		m.status = "no commit SHA known for " + pr.Key + " — refresh (r) and retry"
+		return *m, nil
+	}
+	st := detailState{item: pr, isChecks: true, checksSHA: sha, checksKind: kind, loading: true}
+	st.item.URL = pr.URL + "/checks" // distinct URL: browser target + stack identity
+	m.pick = nil
+	m.status = ""
+	m.detailStack = append(m.detailStack, st)
+	return *m, m.fetchChecksCmd(st.item.URL, pr.Repo, sha)
+}
+
+func (m *Model) fetchChecksCmd(url, repo, sha string) tea.Cmd {
+	g := m.cfg.Clients[m.client].GitHub
+	if g == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		runs, err := github.FetchChecks(ctx, g, repo, sha)
+		return checksMsg{url: url, runs: runs, err: err}
+	}
+}
+
+func runsPending(runs []data.WorkflowRun) bool {
+	for _, r := range runs {
+		if r.Status != "COMPLETED" {
+			return true
+		}
+	}
+	return false
+}
+
 func prNumber(key string) int {
 	var n int
 	if i := strings.LastIndex(key, "#"); i >= 0 {
@@ -174,6 +230,31 @@ func (m Model) updateDetail(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case checksMsg:
+		if st := m.stateFor(msg.url); st != nil {
+			st.loading = false
+			if msg.err != nil {
+				st.err = msg.err.Error()
+			} else {
+				st.err = ""
+				st.runs = msg.runs
+			}
+			// Watch live: refetch every 10s while any run is pending.
+			if runsPending(st.runs) {
+				url := msg.url
+				return m, tea.Tick(10*time.Second, func(time.Time) tea.Msg {
+					return checksTickMsg{url: url}
+				})
+			}
+		}
+		return m, nil
+
+	case checksTickMsg:
+		if st := m.stateFor(msg.url); st != nil && st.isChecks {
+			return m, m.fetchChecksCmd(msg.url, st.item.Repo, st.checksSHA)
+		}
+		return m, nil
+
 	case checkoutMsg:
 		if msg.err != nil {
 			m.status = "checkout failed: " + msg.err.Error()
@@ -214,6 +295,18 @@ func (m Model) updateDetail(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.pendingG = false
 			if msg.String() == "g" {
 				m.top().scroll = 0
+				return m, nil
+			}
+		}
+
+		// In the checks window, digits open the numbered run in the browser.
+		if t := m.top(); t != nil && t.isChecks {
+			s := msg.String()
+			if s >= "1" && s <= "9" {
+				if n := int(s[0] - '1'); n < len(t.runs) && t.runs[n].URL != "" {
+					m.status = "opened " + t.runs[n].Name
+					return m, openURLCmd(t.runs[n].URL)
+				}
 				return m, nil
 			}
 		}
@@ -301,6 +394,18 @@ func (m Model) updateDetail(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.pick = targets
 				return m, nil
 			}
+		case m.km.Is(msg, "checks"):
+			t := m.top()
+			pr := t.item
+			if pr.Kind != data.KindPullRequest {
+				if lp := m.linkedPR(pr.Key); lp != nil {
+					pr = *lp
+				} else {
+					m.status = "no linked PR for " + pr.Key
+					return m, nil
+				}
+			}
+			return m.openChecks(pr)
 		case m.km.Is(msg, "checkout"):
 			return m, m.checkoutCmd()
 		case m.km.Is(msg, "git-ui"):
@@ -497,6 +602,11 @@ func (m Model) viewDetail() string {
 		push(errStyle.Render("⚠ " + t.err))
 	}
 
+	if t.isChecks {
+		m.pushChecks(t, push)
+	}
+	// For a checks state the Kind switch below is inert (t.pr is nil).
+
 	switch it.Kind {
 	case data.KindJiraIssue:
 		if desc := strings.TrimSpace(it.Description); desc != "" {
@@ -517,12 +627,18 @@ func (m Model) viewDetail() string {
 		if len(prs) > 0 {
 			push(headerLabel.Render("Git") + subtaskStyle.Render("  (p to open)"))
 			for _, p := range prs {
-				line := "  " + bucketDot(p.Bucket) + " " + keyStyle.Render(p.Key) + " " +
-					ciIcon(p.CIState) + conflictIcon(p.Mergeable) + " " +
-					diffStat(p.Additions, p.Deletions) + " " +
-					subtaskStyle.Render(branchGlyph+" "+p.Branch) + " Â· " + p.Bucket.Label()
-				if rl := reviewLabel(p.ReviewDecision); rl != "" {
-					line += " · " + rl
+				var line string
+				if p.Merged {
+					line = "  " + mergedStyle.Render(mergedGlyph+" "+p.Key) +
+						" merged " + relAge(p.MergedAt) + " ago · post-merge " + ciIcon(p.MergeCIState)
+				} else {
+					line = "  " + bucketDot(p.Bucket) + " " + keyStyle.Render(p.Key) + " " +
+						ciIcon(p.CIState) + conflictIcon(p.Mergeable) + " " +
+						diffStat(p.Additions, p.Deletions) + " " +
+						subtaskStyle.Render(branchGlyph+" "+p.Branch) + " · " + p.Bucket.Label()
+					if rl := reviewLabel(p.ReviewDecision); rl != "" {
+						line += " · " + rl
+					}
 				}
 				push(line)
 			}
@@ -618,7 +734,14 @@ func (m Model) detailHelp() string {
 	if len(m.pick) > 0 {
 		return "1-9 pick · esc cancel"
 	}
+	if t := m.top(); t != nil && t.isChecks {
+		return "1-9 open run · " + m.km.label("back") + " back · " + m.km.label("help") + " help"
+	}
 	parts := []string{m.km.label("back") + " back"}
+	if t := m.top(); t != nil &&
+		(t.item.Kind == data.KindPullRequest || m.linkedPR(t.item.Key) != nil) {
+		parts = append(parts, m.km.label("checks")+" checks")
+	}
 	if targets := m.jumpTargets(); len(targets) > 0 {
 		if m.top().item.Kind == data.KindJiraIssue {
 			parts = append(parts, m.km.label("jump")+" → PR")
@@ -628,6 +751,53 @@ func (m Model) detailHelp() string {
 	}
 	parts = append(parts, m.km.label("help")+" help")
 	return strings.Join(parts, " · ")
+}
+
+// pushChecks renders the GHA checks window content.
+func (m Model) pushChecks(t *detailState, push func(string)) {
+	push(subtaskStyle.Render(fmt.Sprintf("%s checks · commit %.10s", t.checksKind, t.checksSHA)))
+	push("")
+	if len(t.runs) == 0 && !t.loading && t.err == "" {
+		push(subtaskStyle.Render("no checks found for this commit"))
+		return
+	}
+	for i, r := range t.runs {
+		age := ""
+		if !r.Created.IsZero() {
+			age = relAge(r.Created) + " ago"
+		}
+		push(fmt.Sprintf("%s %s %s %s",
+			keyStyle.Render(fmt.Sprintf("%d)", i+1)),
+			runIcon(r.Status, r.Conclusion),
+			headerLabel.Render(r.Name),
+			subtaskStyle.Render(age)))
+		for _, j := range r.Jobs {
+			dur := ""
+			if !j.Started.IsZero() && !j.Completed.IsZero() {
+				dur = j.Completed.Sub(j.Started).Round(time.Second).String()
+			}
+			push(fmt.Sprintf("     %s %s %s",
+				runIcon(j.Status, j.Conclusion), j.Name, subtaskStyle.Render(dur)))
+		}
+		push("")
+	}
+	if runsPending(t.runs) {
+		push(m.spin.View() + subtaskStyle.Render(" runs in progress — auto-refreshing every 10s"))
+	}
+}
+
+func runIcon(status, conclusion string) string {
+	if status != "COMPLETED" {
+		return iconPending
+	}
+	switch conclusion {
+	case "SUCCESS":
+		return iconPass
+	case "FAILURE", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE":
+		return iconFail
+	default: // CANCELLED, SKIPPED, NEUTRAL, …
+		return iconNone
+	}
 }
 
 func openURLCmd(url string) tea.Cmd {
