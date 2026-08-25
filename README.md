@@ -143,6 +143,16 @@ expand/collapse · `g` git view · `y`/`Y` copy links · `o` browser ·
 `ctrl+d/u/f/b`, `gg`/`G`) — and in detail views: `p` jump issue⇄PR,
 `c` checkout, `L` lazygit, `t` terminal, `a` AI agent, `esc` back.
 
+**`A` — chat pane**: converse with Claude about any issue or PR without
+leaving the dashboard (from the list or a detail view). It runs your own
+Claude Code headless in the item's repo with the ticket context injected,
+so plain-language requests like *"add a Jira comment saying it's tested"*
+or *"fix the flaky check and push"* work through your existing skills and
+permission allowlists — no special commands. Tool activity streams as `⚒`
+lines, each issue keeps its own resumable session, `enter` sends, `esc`
+cancels a running turn or steps back. `commands.chat_permission_mode`
+(default `acceptEdits`, or `plan` for read-only) governs what it may do.
+
 ### Custom keybindings
 
 Remap any action by id in the config:
@@ -155,7 +165,7 @@ keys:
 
 Action ids: `down up top bottom` · `view-toggle view-issues view-prs
 client-picker` · `detail detail-alt expand collapse toggle groups-all` ·
-`git-view jump checkout git-ui terminal agent` · `copy copy-linked open` ·
+`git-view jump checkout git-ui terminal agent chat checks` · `copy copy-linked open` ·
 `refresh filter edit-config back to-list help quit`. Unknown ids and key
 conflicts are reported at startup; fixed keys (digits, page scrolling) are
 not remappable. Arrow keys, `ctrl+c`, and other aliases always keep working.
