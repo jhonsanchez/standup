@@ -29,6 +29,8 @@ func alertDoneOpenIcon() string {
 	return alertRed.Render("⚑")
 }
 func alertApprovedIcon() string { return alertOrange.Render("⇡") }
+func alertBehindIcon() string   { return alertOrange.Render("⇣") }
+func alertBlockedIcon() string  { return alertRed.Render("⊘") }
 func alertStaleIcon() string    { return alertOrange.Render("◷") }
 
 // issueAlerts inspects a Jira issue against its linked PRs.
@@ -68,6 +70,12 @@ func (m Model) prAlerts(p data.Item) []alert {
 	approvedDays, staleDays := m.cfg.AlertDays()
 	age := time.Since(p.Updated)
 	var out []alert
+	switch p.MergeState {
+	case "BEHIND":
+		out = append(out, alert{alertBehindIcon(), "branch is behind the base — update/rebase before merging"})
+	case "BLOCKED":
+		out = append(out, alert{alertBlockedIcon(), "merge blocked by branch protection (reviews/checks/rules)"})
+	}
 	if approvedDays > 0 && p.ReviewDecision == "APPROVED" && age > time.Duration(approvedDays)*24*time.Hour {
 		out = append(out, alert{alertApprovedIcon(),
 			fmt.Sprintf("approved but unmerged for %s — merge it", relAge(p.Updated))})

@@ -119,7 +119,7 @@ fragment prm on PullRequest {
 }
 fragment pr on PullRequest {
   number title url isDraft updatedAt additions deletions
-  mergeable reviewDecision totalCommentsCount headRefName headRefOid
+  mergeable mergeStateStatus reviewDecision totalCommentsCount headRefName headRefOid
   merged mergedAt
   mergeCommit { oid statusCheckRollup { state } }
   author { login }
@@ -141,6 +141,7 @@ type prNode struct {
 	Additions          int       `json:"additions"`
 	Deletions          int       `json:"deletions"`
 	Mergeable          string    `json:"mergeable"`
+	MergeStateStatus   string    `json:"mergeStateStatus"`
 	ReviewDecision     string    `json:"reviewDecision"`
 	TotalCommentsCount int       `json:"totalCommentsCount"`
 	HeadRefName        string    `json:"headRefName"`
@@ -201,6 +202,7 @@ func toPRItem(n prNode, reviewRequested bool) data.Item {
 		Updated:         n.UpdatedAt,
 		CIState:         n.ciState(),
 		Mergeable:       n.Mergeable,
+		MergeState:      n.MergeStateStatus,
 		Branch:          n.HeadRefName,
 		ReviewDecision:  n.ReviewDecision,
 		HeadSHA:         n.HeadRefOid,

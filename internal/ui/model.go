@@ -1335,8 +1335,15 @@ func gitMarker(pr *data.Item) string {
 	case "CHANGES_REQUESTED":
 		style = lipgloss.NewStyle().Foreground(colOrange)
 	}
+	extra := ""
+	switch pr.MergeState {
+	case "BEHIND":
+		extra = alertBehindIcon()
+	case "BLOCKED":
+		extra = alertBlockedIcon()
+	}
 	return hyperlink(pr.URL, style.Render(githubGlyph+" "+repo+num)) +
-		ciIcon(pr.CIState) + strings.TrimRight(conflictIcon(pr.Mergeable), " ")
+		ciIcon(pr.CIState) + strings.TrimRight(conflictIcon(pr.Mergeable), " ") + extra
 }
 
 // localBranches returns branches in local clones whose name contains the

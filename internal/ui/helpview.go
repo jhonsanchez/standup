@@ -74,6 +74,8 @@ func (m Model) viewHelp() string {
 		"  " + alertDoneOpenIcon() + " " + helpArrowStyle.Render("→") + " issue Done but PRs still open",
 		"  " + alertApprovedIcon() + " " + helpArrowStyle.Render("→") + " PR approved but unmerged too long",
 		"  " + alertStaleIcon() + " " + helpArrowStyle.Render("→") + " PR without activity too long",
+		"  " + alertBehindIcon() + " " + helpArrowStyle.Render("→") + " branch behind base — update before merge",
+		"  " + alertBlockedIcon() + " " + helpArrowStyle.Render("→") + " merge blocked by branch protection",
 		"",
 	}
 	blocks = append(blocks, legend)

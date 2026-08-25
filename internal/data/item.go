@@ -44,6 +44,7 @@ type Item struct {
 	Updated        time.Time
 	CIState        string // "SUCCESS" | "FAILURE" | "ERROR" | "PENDING" | "EXPECTED" | ""
 	Mergeable      string // "MERGEABLE" | "CONFLICTING" | "UNKNOWN" | ""
+	MergeState     string // mergeStateStatus: CLEAN | BEHIND | BLOCKED | DIRTY | UNSTABLE | …
 	Branch         string // PR head branch
 	ReviewDecision string // "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | ""
 	HeadSHA        string
