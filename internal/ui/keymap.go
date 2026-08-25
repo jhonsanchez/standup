@@ -106,6 +106,18 @@ func defaultKeymap() *keymap {
 		{id: "jump", primary: "p", group: grpGit, short: "p link",
 			desc: "Jump between a Jira issue and its linked PR(s)", ctx: ctxDetail,
 			when: func(m *Model) bool { return len(m.jumpTargets()) > 0 }},
+		{id: "start-branch", primary: "b", group: grpGit,
+			desc: "Start work: create & push a branch for this issue (maps it to a repo)", ctx: ctxList | ctxDetail,
+			when: func(m *Model) bool {
+				var it *data.Item
+				if t := m.top(); t != nil {
+					it = &t.item
+				} else if c, _, ok := m.cursorInfo(); ok {
+					it = c
+				}
+				return it != nil && it.Kind == data.KindJiraIssue &&
+					m.linkedPR(it.Key) == nil && len(m.localBranches(it.Key)) == 0
+			}},
 		{id: "chat", primary: "A", group: grpGit,
 			desc: "Chat with Claude about this item — it can answer, comment on Jira, or fix code", ctx: ctxList | ctxDetail,
 			when: func(m *Model) bool {

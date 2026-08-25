@@ -3,6 +3,7 @@
 package gitscan
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -42,4 +43,46 @@ func Scan(base string) []data.BranchRef {
 		}
 	}
 	return out
+}
+
+// DefaultBase returns the repo's default remote branch (e.g. origin/develop).
+func DefaultBase(dir string) string {
+	out, err := exec.Command("git", "-C", dir, "symbolic-ref", "--short", "refs/remotes/origin/HEAD").Output()
+	if err != nil {
+		return "origin/HEAD"
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// StartBranch creates branch off the default base and pushes it — without
+// touching the repo's working tree. If the branch already exists on the
+// remote, the fetch alone links it (existed=true). A failed push still
+// leaves the local branch (mapping works on this machine); pushErr reports it.
+func StartBranch(dir, branch string) (existed bool, pushErr, err error) {
+	if out, e := exec.Command("git", "-C", dir, "fetch", "origin").CombinedOutput(); e != nil {
+		return false, nil, fmt.Errorf("fetch: %s", firstLine(out))
+	}
+	if exec.Command("git", "-C", dir, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/"+branch).Run() == nil {
+		return true, nil, nil
+	}
+	if exec.Command("git", "-C", dir, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch).Run() != nil {
+		if out, e := exec.Command("git", "-C", dir, "branch", branch, DefaultBase(dir)).CombinedOutput(); e != nil {
+			return false, nil, fmt.Errorf("branch: %s", firstLine(out))
+		}
+	}
+	if out, e := exec.Command("git", "-C", dir, "push", "-u", "origin", branch).CombinedOutput(); e != nil {
+		return false, fmt.Errorf("push: %s", firstLine(out)), nil
+	}
+	return false, nil, nil
+}
+
+func firstLine(b []byte) string {
+	s := strings.TrimSpace(string(b))
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		s = s[:i]
+	}
+	if len(s) > 120 {
+		s = s[:120]
+	}
+	return s
 }

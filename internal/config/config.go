@@ -37,6 +37,9 @@ type Config struct {
 	// go-install builds are never touched. Default true; set false to only
 	// show the update notice.
 	AutoUpdate *bool `yaml:"auto_update,omitempty"`
+	// BranchTemplate names branches created by the b start-work flow;
+	// {key} is the issue key. Default "{key}" (e.g. FALCON-3149).
+	BranchTemplate string `yaml:"branch_template,omitempty"`
 	// Keys remaps shortcuts by action id, e.g. {git-view: "G", filter: "s"}.
 	// Press ? in the app to see actions; ids are documented in the README.
 	Keys map[string]string `yaml:"keys,omitempty"`

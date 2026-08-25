@@ -108,6 +108,7 @@ type Model struct {
 	chatInput      textarea.Model
 	chatRepoChoice map[string]string // per-issue repo pick for the chat
 	repoPick       *repoPickState    // chat repo chooser overlay
+	branchOp       *branchConfirm    // b start-work confirmation
 }
 
 func New(cfg *config.Config, version string) Model {
@@ -508,7 +509,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case prDetailMsg, jiraDetailMsg, checksMsg, checksTickMsg, checkoutMsg, execDoneMsg:
 		return m.updateDetail(msg)
 
+	case branchDoneMsg:
+		return m.applyBranchDone(msg)
+
 	case tea.KeyMsg:
+		if m.branchOp != nil {
+			return m.handleBranchConfirm(msg)
+		}
 		if m.repoPick != nil {
 			return m.handleRepoPick(msg)
 		}
@@ -738,6 +745,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m.openChat(*it)
 
+	case m.km.Is(msg, "start-branch"):
+		it, _, ok := m.cursorInfo()
+		if !ok || it.Kind != data.KindJiraIssue {
+			return m, nil
+		}
+		return m.openStartBranch(*it)
+
 	case m.km.Is(msg, "git-view"):
 		// Git view: jump straight to the linked PR's detail.
 		if len(rows) == 0 || rows[cur].kind == rowHeader {
@@ -892,6 +906,9 @@ func padToHeight(s string, h int) string {
 }
 
 func (m Model) View() string {
+	if m.branchOp != nil {
+		return m.viewBranchConfirm()
+	}
 	if m.repoPick != nil {
 		return m.viewRepoPick()
 	}

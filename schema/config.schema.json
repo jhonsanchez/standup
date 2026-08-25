@@ -193,6 +193,14 @@
     "auto_update": {
       "type": "boolean",
       "description": "Silently update direct-binary installs in the background when a new release exists (sha256-verified; applies on next launch). Brew and go-install builds only get a notice. Default true."
+    },
+    "branch_template": {
+      "type": "string",
+      "description": "Branch name for the b start-work flow; {key} is the issue key. Default \"{key}\".",
+      "examples": [
+        "{key}",
+        "feature/{key}"
+      ]
     }
   }
 }

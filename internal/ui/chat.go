@@ -62,11 +62,13 @@ func (m *Model) openChat(it data.Item) (tea.Model, tea.Cmd) {
 		}
 		if !confident {
 			if repos := m.repoOptions(); len(repos) > 0 {
-				ti := textinput.New()
-				ti.Prompt = "repo: "
-				ti.Placeholder = "type to filter — enter picks first match, empty = projects root"
-				ti.Focus()
-				m.repoPick = &repoPickState{item: it, input: ti, repos: repos, root: dir}
+				suggest := m.suggestRepo(it)
+				if suggest != "" {
+					sort.SliceStable(repos, func(a, b int) bool {
+						return repos[a].name == suggest && repos[b].name != suggest
+					})
+				}
+				m.repoPick = &repoPickState{item: it, input: newPickInput(), repos: repos, root: dir, suggest: suggest}
 				return *m, textinput.Blink
 			}
 		}
@@ -101,10 +103,20 @@ type repoOption struct {
 }
 
 type repoPickState struct {
-	item  data.Item
-	input textinput.Model
-	repos []repoOption
-	root  string
+	item      data.Item
+	input     textinput.Model
+	repos     []repoOption
+	root      string
+	suggest   string // preselected repo name (from title/repo_map)
+	forBranch bool   // picking for the b start-work flow, not the chat
+}
+
+func newPickInput() textinput.Model {
+	ti := textinput.New()
+	ti.Prompt = "repo: "
+	ti.Placeholder = "type to filter — enter picks the first match"
+	ti.Focus()
+	return ti
 }
 
 // repoOptions lists the client's local clones (from the branch scan — free).
@@ -143,9 +155,17 @@ func (m Model) handleRepoPick(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.repoPick = nil
 		return m, nil
 	case "enter":
-		dir := rp.root // empty filter → projects root default
 		flt := rp.filtered()
+		if rp.forBranch {
+			if len(flt) == 0 {
+				return m, nil
+			}
+			return m.confirmBranch(rp.item, flt[0])
+		}
+		dir := rp.root // chat: empty filter → projects root default
 		if strings.TrimSpace(rp.input.Value()) != "" && len(flt) > 0 {
+			dir = flt[0].dir
+		} else if rp.suggest != "" && len(flt) > 0 && flt[0].name == rp.suggest {
 			dir = flt[0].dir
 		}
 		return m.finishRepoPick(dir)
@@ -153,6 +173,9 @@ func (m Model) handleRepoPick(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if s := msg.String(); len(s) == 1 && s >= "1" && s <= "9" {
 			if flt := rp.filtered(); len(flt) <= 9 || rp.input.Value() != "" {
 				if n := int(s[0] - '1'); n < len(flt) {
+					if rp.forBranch {
+						return m.confirmBranch(rp.item, flt[n])
+					}
 					return m.finishRepoPick(flt[n].dir)
 				}
 			}
@@ -175,8 +198,13 @@ func (m Model) finishRepoPick(dir string) (tea.Model, tea.Cmd) {
 func (m Model) viewRepoPick() string {
 	rp := m.repoPick
 	var b strings.Builder
-	b.WriteString(headerLabel.Render("Where should Claude work on "+rp.item.Key+"?") + "\n")
-	b.WriteString(subtaskStyle.Render("no linked PR or branch yet — pick a repo, or enter with no filter for the projects root ("+rp.root+")") + "\n\n")
+	if rp.forBranch {
+		b.WriteString(headerLabel.Render("Start work on "+rp.item.Key+" — in which repo?") + "\n")
+		b.WriteString(subtaskStyle.Render("a branch named after the issue will be created and pushed (maps the issue to the repo)") + "\n\n")
+	} else {
+		b.WriteString(headerLabel.Render("Where should Claude work on "+rp.item.Key+"?") + "\n")
+		b.WriteString(subtaskStyle.Render("no linked PR or branch yet — pick a repo, enter with no filter = projects root ("+rp.root+") · tip: b maps this issue permanently via a branch") + "\n\n")
+	}
 	b.WriteString(rp.input.View() + "\n\n")
 	flt := rp.filtered()
 	limit := 9
@@ -185,10 +213,18 @@ func (m Model) viewRepoPick() string {
 			b.WriteString(subtaskStyle.Render(fmt.Sprintf("  … %d more — keep typing to narrow", len(flt)-limit)) + "\n")
 			break
 		}
-		b.WriteString(fmt.Sprintf("  %s %s %s\n",
-			keyStyle.Render(fmt.Sprintf("%d)", i+1)), r.name, subtaskStyle.Render(r.dir)))
+		note := ""
+		if r.name == rp.suggest {
+			note = chatYouStyle.Render(" (suggested)")
+		}
+		b.WriteString(fmt.Sprintf("  %s %s%s %s\n",
+			keyStyle.Render(fmt.Sprintf("%d)", i+1)), r.name, note, subtaskStyle.Render(r.dir)))
 	}
-	b.WriteString("\n" + helpStyle.Render("1-9/enter pick · enter (empty) projects root · esc cancel"))
+	help := "1-9/enter pick · enter (empty) projects root · esc cancel"
+	if rp.forBranch {
+		help = "1-9/enter pick · esc cancel"
+	}
+	b.WriteString("\n" + helpStyle.Render(help))
 	return padToHeight(lipgloss.NewStyle().Padding(0, 1).Render(b.String()), m.termHeight())
 }
 

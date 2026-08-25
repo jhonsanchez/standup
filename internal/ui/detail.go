@@ -403,6 +403,11 @@ func (m Model) updateDetail(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case m.km.Is(msg, "chat"):
 			return m.openChat(m.top().item)
+		case m.km.Is(msg, "start-branch"):
+			if it := m.top().item; it.Kind == data.KindJiraIssue {
+				return m.openStartBranch(it)
+			}
+			return m, nil
 		case m.km.Is(msg, "checks"):
 			t := m.top()
 			pr := t.item
