@@ -92,6 +92,7 @@ type Model struct {
 	detailStack []detailState
 	pick        []data.Item // jump-target picker overlay
 	pendingG    bool        // first g of a gg sequence (detail view)
+	clientPick  bool        // client-switcher overlay (list view)
 }
 
 func New(cfg *config.Config) Model {
@@ -370,9 +371,32 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	cur := m.clampCursor(rows)
 	m.status = ""
 
+	// Client-switcher overlay: shows names only while open.
+	if m.clientPick {
+		s := msg.String()
+		switch {
+		case s == "esc" || s == "w":
+			m.clientPick = false
+			return m, nil
+		case s >= "1" && s <= "9":
+			if n := int(s[0] - '1'); n < len(m.cfg.Clients) {
+				m.clientPick = false
+				m.client = n
+				return m.ensureLoaded()
+			}
+		}
+		return m, nil
+	}
+
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
+
+	case "w":
+		if len(m.cfg.Clients) > 1 {
+			m.clientPick = true
+		}
+		return m, nil
 
 	case "tab", "shift+tab":
 		m.view = 1 - m.view
@@ -698,6 +722,17 @@ func (m Model) View() string {
 
 	// Pinned footer: errors + status + help.
 	var fparts []string
+	if m.clientPick {
+		fparts = append(fparts, headerLabel.Render("Switch client:"))
+		for i, c := range m.cfg.Clients {
+			marker := "  "
+			if i == m.client {
+				marker = "▸ "
+			}
+			fparts = append(fparts, fmt.Sprintf("%s%s %s",
+				marker, keyStyle.Render(fmt.Sprintf("%d)", i+1)), c.Name))
+		}
+	}
 	for _, e := range st.errs {
 		fparts = append(fparts, errStyle.MaxWidth(m.width).Render("⚠ "+e))
 	}
@@ -724,8 +759,15 @@ func (m Model) View() string {
 // listHelp shows only the shortcuts available for the current row.
 func (m Model) listHelp() string {
 	var parts []string
-	if len(m.cfg.Clients) > 1 && !m.cfg.HideClients {
-		parts = append(parts, fmt.Sprintf("1-%d client", len(m.cfg.Clients)))
+	if m.clientPick {
+		return "1-9 pick · esc cancel"
+	}
+	if len(m.cfg.Clients) > 1 {
+		if m.cfg.HideClients {
+			parts = append(parts, "w client")
+		} else {
+			parts = append(parts, fmt.Sprintf("1-%d/w client", len(m.cfg.Clients)))
+		}
 	}
 	parts = append(parts, "tab view", "j/k move")
 	rows := m.rows()
