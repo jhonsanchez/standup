@@ -1225,11 +1225,16 @@ func (m *Model) copyURL(url, what string) {
 	// clipboard (pbcopy/xclip) is attempted too as a fallback.
 	oscErr := oscCopy(url)
 	sysErr := clipboard.WriteAll(url)
-	if oscErr != nil && sysErr != nil {
+	switch {
+	case oscErr != nil && sysErr != nil:
 		m.status = "copy failed — needs an OSC52-capable terminal, or xclip/xsel on Linux"
-		return
+	case sysErr != nil:
+		// Only OSC52 was emitted; the terminal must honor it (iTerm2:
+		// Settings→General→Selection→clipboard access; tmux: set-clipboard on).
+		m.status = "copied " + what + " via OSC52 — if paste is stale, enable clipboard access in your terminal"
+	default:
+		m.status = "copied " + what + " → " + url
 	}
-	m.status = "copied " + what + " → " + url
 }
 
 // oscCopy writes the text to the terminal's clipboard via OSC52.
