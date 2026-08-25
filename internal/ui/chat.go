@@ -81,16 +81,15 @@ func (m *Model) openChat(it data.Item) (tea.Model, tea.Cmd) {
 	}
 	m.pick = nil
 	m.status = ""
-	m.dock = &dockState{key: it.Key, focused: true}
+	m.dock = &dockState{key: it.Key}
 	m.chatInput.Focus()
 	return *m, textarea.Blink
 }
 
 // dockState is the bottom chat panel: the upper view keeps rendering above
-// it; focus decides where keys go.
+// it; while open, typing goes to the input.
 type dockState struct {
-	key     string
-	focused bool
+	key string
 }
 
 func (m Model) dockHeight() int {
@@ -314,18 +313,9 @@ func orDash(s string) string {
 func (m Model) handleDock(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	cs := m.chats[m.dock.key]
 	switch msg.String() {
-	case "esc":
-		if cs != nil && cs.running {
-			cs.cancel()
-			cs.running = false
-			cs.msgs = append(cs.msgs, chatMsg{role: chatRoleSystem, text: "· cancelled"})
-			return m, nil
-		}
-		// Unfocus: keys go back to the upper view; the dock stays visible.
-		m.dock.focused = false
-		m.chatInput.Blur()
-		return m, nil
-	case "ctrl+x":
+	case "esc", "ctrl+x":
+		// Close the dock. A running turn keeps going in the background —
+		// the footer pings when it finishes, A reopens the conversation.
 		m.chatInput.Blur()
 		m.dock = nil
 		return m, nil
@@ -333,6 +323,7 @@ func (m Model) handleDock(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if cs != nil && cs.running {
 			cs.cancel()
 			cs.running = false
+			cs.msgs = append(cs.msgs, chatMsg{role: chatRoleSystem, text: "· cancelled"})
 			return m, nil
 		}
 		return m, tea.Quit
@@ -407,6 +398,9 @@ func (m Model) applyChatEvent(msg chatEvMsg) (tea.Model, tea.Cmd) {
 		if ev.Err != nil {
 			cs.msgs = append(cs.msgs, chatMsg{role: chatRoleSystem, text: "⚠ " + ev.Err.Error()})
 		}
+		if m.dock == nil || m.dock.key != cs.itemKey {
+			m.status = "✓ chat " + cs.itemKey + " replied — A to view"
+		}
 		return m, nil
 	}
 	cs.scroll = 0
@@ -423,13 +417,10 @@ func (m Model) viewDock() string {
 	}
 	wrap := lipgloss.NewStyle().Width(w)
 
-	headStyle, hint := chatToolStyle, "A focus chat · ctrl+x close"
-	if m.dock.focused {
-		headStyle = chatClaudeStyle
-		hint = "enter send · esc unfocus · ctrl+u/d scroll · ctrl+x close"
-		if cs.running {
-			hint = "esc cancel · " + hint
-		}
+	headStyle := chatClaudeStyle
+	hint := "enter send · esc close · ctrl+u/d scroll"
+	if cs.running {
+		hint = "ctrl+c cancel · " + hint + " (turn keeps running when closed)"
 	}
 	label := " chat · " + m.dock.key + " · " + cs.repoDir + " "
 	bar := label + strings.Repeat("─", maxInt(0, w-lipgloss.Width(label)))

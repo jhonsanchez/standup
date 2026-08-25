@@ -520,12 +520,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.applyBranchDone(msg)
 
 	case tea.KeyMsg:
-		if m.dock != nil && msg.String() == "ctrl+x" {
-			m.chatInput.Blur()
-			m.dock = nil
-			return m, nil
-		}
-		if m.dock != nil && m.dock.focused {
+		if m.dock != nil {
 			return m.handleDock(msg)
 		}
 		if m.branchOp != nil {
@@ -761,17 +756,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case m.km.Is(msg, "chat"):
 		it, _, ok := m.cursorInfo()
 		if !ok {
-			if m.dock != nil {
-				m.dock.focused = true
-				m.chatInput.Focus()
-				return m, textarea.Blink
-			}
 			return m, nil
-		}
-		if m.dock != nil && m.dock.key == it.Key {
-			m.dock.focused = true
-			m.chatInput.Focus()
-			return m, textarea.Blink
 		}
 		return m.openChat(*it)
 
