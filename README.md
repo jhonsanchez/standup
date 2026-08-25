@@ -34,7 +34,14 @@ issue⇄PR⇄branch cross-linking and one-key jumps into your local repos.
 
 ### Updating
 
-`standup upgrade` detects the install method and updates in place
+**Auto-update**: release builds installed as a direct binary (the install
+script's default) keep themselves current — when a new release exists,
+standup downloads it in the background (sha256-verified against the release
+checksums), swaps the binary, and shows `✓ auto-updated — restart to apply`
+in the footer. Brew/go installs just get an update notice. Opt out with
+`auto_update: false` in the config.
+
+**Manually**: `standup upgrade` detects the install method and updates in place
 (`brew upgrade standup` for brew installs, `go install @latest` for Go
 installs, direct binary swap otherwise; on Windows it points you to the
 releases page).
