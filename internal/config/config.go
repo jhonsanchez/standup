@@ -32,6 +32,11 @@ type Config struct {
 	// Useful when screen-sharing with one client. For full isolation run
 	// `standup <client>`, which loads only that client.
 	HideClients bool `yaml:"hide_clients,omitempty"`
+	// AutoUpdate silently updates direct-binary installs in the background
+	// when a new release is available (applies on next launch). Brew and
+	// go-install builds are never touched. Default true; set false to only
+	// show the update notice.
+	AutoUpdate *bool `yaml:"auto_update,omitempty"`
 	// Keys remaps shortcuts by action id, e.g. {git-view: "G", filter: "s"}.
 	// Press ? in the app to see actions; ids are documented in the README.
 	Keys map[string]string `yaml:"keys,omitempty"`
@@ -45,6 +50,11 @@ type Commands struct {
 	Agent string `yaml:"agent,omitempty"`
 	// GitUI is the git TUI for the `L` key (default "lazygit").
 	GitUI string `yaml:"git_ui,omitempty"`
+}
+
+// AutoUpdateEnabled reports whether background self-update is on (default).
+func (c *Config) AutoUpdateEnabled() bool {
+	return c.AutoUpdate == nil || *c.AutoUpdate
 }
 
 // AgentCommand returns the argv for the AI agent with the prompt applied.

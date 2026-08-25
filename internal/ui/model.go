@@ -24,6 +24,7 @@ import (
 	"github.com/jhonsanchez/standup/internal/github"
 	"github.com/jhonsanchez/standup/internal/gitscan"
 	"github.com/jhonsanchez/standup/internal/jira"
+	"github.com/jhonsanchez/standup/internal/upgrade"
 )
 
 type view int
@@ -92,14 +93,15 @@ type Model struct {
 	height    int
 	status    string
 
-	version     string // running version, for the update notice
-	updateAvail string // newer release tag, when detected
-	detailStack []detailState
-	pick        []data.Item // jump-target picker overlay
-	pendingG    bool        // first g of a gg sequence (detail view)
-	clientPick  bool        // client-switcher overlay (list view)
-	showHelp    bool        // `?` shortcuts menu
-	km          *keymap
+	version       string // running version, for the update notice
+	updateAvail   string // newer release tag, when detected
+	updateApplied string // tag auto-installed in the background
+	detailStack   []detailState
+	pick          []data.Item // jump-target picker overlay
+	pendingG      bool        // first g of a gg sequence (detail view)
+	clientPick    bool        // client-switcher overlay (list view)
+	showHelp      bool        // `?` shortcuts menu
+	km            *keymap
 }
 
 func New(cfg *config.Config, version string) Model {
@@ -164,6 +166,11 @@ func (m Model) Init() tea.Cmd {
 
 type newVersionMsg struct {
 	tag string
+}
+
+type autoUpdatedMsg struct {
+	tag string
+	err error
 }
 
 // checkForUpdate resolves the latest release tag once at startup (via the
@@ -424,7 +431,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case newVersionMsg:
 		if msg.tag != "" && msg.tag != "v"+m.version {
 			m.updateAvail = msg.tag
+			if m.cfg.AutoUpdateEnabled() {
+				current := m.version
+				return m, func() tea.Msg {
+					tag, err := upgrade.AutoUpdate(current)
+					return autoUpdatedMsg{tag: tag, err: err}
+				}
+			}
 		}
+		return m, nil
+
+	case autoUpdatedMsg:
+		if msg.err == nil && msg.tag != "" {
+			m.updateAvail = ""
+			m.updateApplied = msg.tag
+		}
+		// Errors or skips (brew/go/unwritable) keep the plain notice.
 		return m, nil
 
 	case autoTickMsg:
@@ -867,7 +889,10 @@ func (m Model) View() string {
 
 	// Pinned footer: errors + status + help.
 	var fparts []string
-	if m.updateAvail != "" {
+	if m.updateApplied != "" {
+		fparts = append(fparts, helpStyle.MaxWidth(m.width).Render(
+			"✓ auto-updated to "+m.updateApplied+" — restart standup to apply"))
+	} else if m.updateAvail != "" {
 		fparts = append(fparts, helpStyle.MaxWidth(m.width).Render(
 			"⬆ "+m.updateAvail+" available — run `standup upgrade` (or brew upgrade standup)"))
 	}
