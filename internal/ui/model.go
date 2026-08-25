@@ -1018,8 +1018,14 @@ func (m Model) View() string {
 			}
 		}
 	}
+	title := "⏵ standup"
+	if m.version != "" && m.version != "dev" {
+		title += " " + subtaskStyle.Render("v"+m.version)
+	} else if m.version == "dev" {
+		title += " " + subtaskStyle.Render("dev")
+	}
 	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Center,
-		titleStyle.Render("⏵ standup"), "  ", strings.Join(tabs, " ")))
+		titleStyle.Render(title), "  ", strings.Join(tabs, " ")))
 	b.WriteString("\n\n")
 
 	// View tabs with counts. The count is styled separately — nesting an
