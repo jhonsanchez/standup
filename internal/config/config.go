@@ -87,13 +87,28 @@ type Commands struct {
 }
 
 // ChatPermissionMode is the --permission-mode for the in-app chat's headless
-// claude runs. Default acceptEdits (edits auto-approved; other actions follow
-// your Claude settings allowlists).
+// claude runs. Default dontAsk: non-allowlisted tools are denied instantly
+// with a clear reason — acceptEdits would HANG headless waiting for a prompt
+// that can never render.
 func (c *Config) ChatPermissionMode() string {
 	if c.Commands.ChatPermissionMode != "" {
 		return c.Commands.ChatPermissionMode
 	}
-	return "acceptEdits"
+	return "dontAsk"
+}
+
+// defaultChatTools is the baseline allowlist for the chat: read/search,
+// edits, todo, and git/gh — enough for Q&A and code work. Per-client
+// chat_allowed_tools (e.g. Jira MCP tools) are appended.
+var defaultChatTools = []string{
+	"Read", "Grep", "Glob", "LS", "Edit", "MultiEdit", "Write", "TodoWrite",
+	"WebFetch", "Bash(git *)", "Bash(gh *)",
+}
+
+// ChatTools merges the baseline allowlist with a client's extras.
+func (c *Config) ChatTools(client *Client) []string {
+	out := append([]string{}, defaultChatTools...)
+	return append(out, client.ChatAllowedTools...)
 }
 
 // AutoUpdateEnabled reports whether background self-update is on (default).

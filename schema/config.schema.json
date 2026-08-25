@@ -70,7 +70,7 @@
             "auto",
             "bypassPermissions"
           ],
-          "description": "claude --permission-mode for the in-app chat (A key). Default acceptEdits: file edits auto-approved, other actions follow your Claude settings allowlists. Use plan for read-only chat."
+          "description": "claude --permission-mode for the in-app chat (A key). Default dontAsk: a baseline allowlist (read/search/edit/git/gh) plus chat_allowed_tools are pre-approved; everything else is denied instantly with a visible reason (headless cannot prompt)."
         }
       }
     },

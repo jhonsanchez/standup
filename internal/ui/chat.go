@@ -114,8 +114,8 @@ func (m Model) contentHeight() int {
 func (m *Model) newChatSession(it data.Item, dir string) *chatSession {
 	cs := &chatSession{item: it, itemKey: it.Key, repoDir: dir}
 	cs.msgs = append(cs.msgs, chatMsg{role: chatRoleSystem, text: fmt.Sprintf(
-		"chat about %s · claude runs in %s — ask questions, or tell it to comment on Jira or fix the code (your skills/permissions apply)",
-		it.Key, dir)})
+		"chat about %s · claude runs in %s · mode %s, %d pre-approved tools (chat_allowed_tools adds more) — denied tools fail fast with a reason",
+		it.Key, dir, m.cfg.ChatPermissionMode(), len(m.cfg.ChatTools(&m.cfg.Clients[m.client])))})
 	m.chats[it.Key] = cs
 	return cs
 }
@@ -358,7 +358,7 @@ func (m Model) handleDock(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		client := m.cfg.Clients[m.client]
 		stream, err := chat.Send(cs.repoDir, cs.claudeID, system, m.cfg.ChatPermissionMode(), text,
-			client.EnvList(), client.ChatAllowedTools)
+			client.EnvList(), m.cfg.ChatTools(&client))
 		if err != nil {
 			m.status = "chat: " + err.Error()
 			return m, nil
@@ -451,7 +451,11 @@ func (m Model) viewDock() string {
 		case chatRoleAssistant:
 			push(chatClaudeStyle.Render("claude ▸ ") + jirafmt.Markdown(msg.text))
 		case chatRoleTool:
-			push(chatToolStyle.Render("  ⚒ " + msg.text))
+			if strings.HasPrefix(msg.text, "✗") {
+				push(errStyle.Render("  " + msg.text))
+			} else {
+				push(chatToolStyle.Render("  ⚒ " + msg.text))
+			}
 		default:
 			push(subtaskStyle.Render(msg.text))
 		}

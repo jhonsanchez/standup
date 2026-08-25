@@ -41,8 +41,8 @@ func Send(dir, sessionID, systemAppend, permMode, prompt string, extraEnv, allow
 	if systemAppend != "" {
 		args = append(args, "--append-system-prompt", systemAppend)
 	}
-	if len(allowedTools) > 0 {
-		args = append(args, "--allowedTools", strings.Join(allowedTools, ","))
+	for _, t := range allowedTools {
+		args = append(args, "--allowedTools", t)
 	}
 	if sessionID != "" {
 		args = append(args, "--resume", sessionID)
@@ -67,6 +67,7 @@ func Send(dir, sessionID, systemAppend, permMode, prompt string, extraEnv, allow
 	go func() {
 		defer close(events)
 		defer cmd.Wait()
+		toolNames := map[string]string{}
 		sc := bufio.NewScanner(stdout)
 		sc.Buffer(make([]byte, 1024*1024), 8*1024*1024)
 		session := sessionID
@@ -92,11 +93,38 @@ func Send(dir, sessionID, systemAppend, permMode, prompt string, extraEnv, allow
 							events <- Event{Delta: c.Text}
 						}
 					case "tool_use":
+						toolNames[c.ID] = c.Name
 						events <- Event{Tool: toolNote(c.Name, c.Input)}
+					}
+				}
+			case "user":
+				// Tool results ride back as user events; surface errors
+				// (permission denials, failures) so blockage is visible.
+				for _, c := range ev.Message.Content {
+					if c.Type == "tool_result" && c.IsError {
+						name := toolNames[c.ToolUseID]
+						if name == "" {
+							name = "tool"
+						}
+						events <- Event{Tool: "✗ " + name + ": " + compact(c.Text, 110)}
 					}
 				}
 			case "result":
 				gotResult = true
+				if len(ev.PermissionDenials) > 0 {
+					names := map[string]bool{}
+					var list []string
+					for _, d := range ev.PermissionDenials {
+						if d.ToolName != "" && !names[d.ToolName] {
+							names[d.ToolName] = true
+							list = append(list, d.ToolName)
+						}
+					}
+					if len(list) > 0 {
+						events <- Event{Tool: "✗ denied this turn: " + strings.Join(list, ", ") +
+							" — add to chat_allowed_tools"}
+					}
+				}
 				var err error
 				if ev.IsError {
 					err = fmt.Errorf("%s", firstNonEmpty(ev.Result, ev.Subtype, "claude returned an error"))
@@ -118,18 +146,16 @@ func Send(dir, sessionID, systemAppend, permMode, prompt string, extraEnv, allow
 }
 
 type streamEvent struct {
-	Type      string `json:"type"`
-	Subtype   string `json:"subtype"`
-	SessionID string `json:"session_id"`
-	Result    string `json:"result"`
-	IsError   bool   `json:"is_error"`
-	Message   struct {
-		Content []struct {
-			Type  string          `json:"type"`
-			Text  string          `json:"text"`
-			Name  string          `json:"name"`
-			Input json.RawMessage `json:"input"`
-		} `json:"content"`
+	Type              string `json:"type"`
+	Subtype           string `json:"subtype"`
+	SessionID         string `json:"session_id"`
+	Result            string `json:"result"`
+	IsError           bool   `json:"is_error"`
+	PermissionDenials []struct {
+		ToolName string `json:"tool_name"`
+	} `json:"permission_denials"`
+	Message struct {
+		Content []contentBlock `json:"content"`
 	} `json:"message"`
 }
 
@@ -161,4 +187,24 @@ func firstNonEmpty(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+type contentBlock struct {
+	Type      string          `json:"type"`
+	ID        string          `json:"id"`
+	Text      string          `json:"text"`
+	Name      string          `json:"name"`
+	Input     json.RawMessage `json:"input"`
+	ToolUseID string          `json:"tool_use_id"`
+	IsError   bool            `json:"is_error"`
+	Content   json.RawMessage `json:"content"`
+}
+
+// compact flattens whitespace and caps length for one-line display.
+func compact(s string, n int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if len(s) > n {
+		return s[:n] + "…"
+	}
+	return s
 }

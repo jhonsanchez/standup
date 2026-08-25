@@ -158,10 +158,11 @@ or *"fix the flaky check and push"* work through your existing skills and
 permission allowlists — no special commands. Tool activity streams as `⚒`
 lines, each issue keeps its own resumable session, `enter` sends, `esc`
 cancels a running turn or steps back. `commands.chat_permission_mode`
-(default `acceptEdits`, or `plan` for read-only) governs what it may do.
-Headless runs can't show permission prompts, so tools beyond your settings
-allowlists (e.g. Jira MCP tools) must be pre-approved per client via
-`chat_allowed_tools`. Mouse wheel scrolls the chat, detail views, and the
+(default `dontAsk`) governs what it may do: a baseline allowlist
+(read/search/edit/todo/`git`/`gh`) plus per-client `chat_allowed_tools`
+(e.g. Jira MCP tools) are pre-approved; anything else is denied instantly
+and shown in red (`✗ tool — add to chat_allowed_tools`) — headless runs
+cannot show permission prompts, so fail-fast beats silent stalls. Mouse wheel scrolls the chat, detail views, and the
 list.
 The working directory resolves from the item's linked PR, a matching
 branch, or the client's `repo_map` (Jira project key → repo folder); with
