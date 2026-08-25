@@ -156,3 +156,12 @@ func statusBadge(category, status string) string {
 		return badgeTodo.Render(status)
 	}
 }
+
+// hyperlink wraps already-styled text in an OSC 8 terminal hyperlink, so
+// supporting terminals (iTerm2, WezTerm, kitty) make it clickable.
+func hyperlink(url, text string) string {
+	if url == "" {
+		return text
+	}
+	return "\x1b]8;;" + url + "\x1b\\" + text + "\x1b]8;;\x1b\\"
+}

@@ -558,7 +558,7 @@ func (m Model) viewDetail() string {
 		pinned = append(pinned, subtaskStyle.MaxWidth(w).Render(strings.Join(crumbs, " → ")))
 	}
 	pinned = append(pinned,
-		lipgloss.NewStyle().MaxWidth(w).Render(headerLabel.Render(it.Key)+" — "+it.Title),
+		lipgloss.NewStyle().MaxWidth(w).Render(hyperlink(it.URL, headerLabel.Render(it.Key))+" — "+it.Title),
 		subtaskStyle.Render(strings.Repeat("─", w)))
 
 	// Scrollable content.
@@ -629,10 +629,10 @@ func (m Model) viewDetail() string {
 			for _, p := range prs {
 				var line string
 				if p.Merged {
-					line = "  " + mergedStyle.Render(mergedGlyph+" "+p.Key) +
+					line = "  " + hyperlink(p.URL, mergedStyle.Render(mergedGlyph+" "+p.Key)) +
 						" merged " + relAge(p.MergedAt) + " ago · post-merge " + ciIcon(p.MergeCIState)
 				} else {
-					line = "  " + bucketDot(p.Bucket) + " " + keyStyle.Render(p.Key) + " " +
+					line = "  " + bucketDot(p.Bucket) + " " + hyperlink(p.URL, keyStyle.Render(p.Key)) + " " +
 						ciIcon(p.CIState) + conflictIcon(p.Mergeable) + " " +
 						diffStat(p.Additions, p.Deletions) + " " +
 						subtaskStyle.Render(branchGlyph+" "+p.Branch) + " · " + p.Bucket.Label()
@@ -647,7 +647,7 @@ func (m Model) viewDetail() string {
 		if len(it.Subtasks) > 0 {
 			push(headerLabel.Render(fmt.Sprintf("Subtasks (%d)", len(it.Subtasks))))
 			for _, s := range it.Subtasks {
-				line := "  " + statusBadge(s.StatusCategory, s.Status) + " " + keyStyle.Render(s.Key)
+				line := "  " + statusBadge(s.StatusCategory, s.Status) + " " + hyperlink(s.URL, keyStyle.Render(s.Key))
 				if mark := gitMarker(m.linkedPR(s.Key)); mark != "" {
 					line += " " + mark
 				}
@@ -769,7 +769,7 @@ func (m Model) pushChecks(t *detailState, push func(string)) {
 		push(fmt.Sprintf("%s %s %s %s",
 			keyStyle.Render(fmt.Sprintf("%d)", i+1)),
 			runIcon(r.Status, r.Conclusion),
-			headerLabel.Render(r.Name),
+			hyperlink(r.URL, headerLabel.Render(r.Name)),
 			subtaskStyle.Render(age)))
 		for _, j := range r.Jobs {
 			dur := ""

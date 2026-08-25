@@ -1085,7 +1085,7 @@ func (m Model) renderItem(it data.Item) string {
 				marker = "▸"
 			}
 		}
-		parts = append(parts, marker, statusBadge(it.StatusCategory, it.Status), keyStyle.Render(it.Key))
+		parts = append(parts, marker, statusBadge(it.StatusCategory, it.Status), hyperlink(it.URL, keyStyle.Render(it.Key)))
 		if mark := gitMarker(m.linkedPR(it.Key)); mark != "" {
 			parts = append(parts, mark)
 		} else if mark := m.branchMarker(it.Key); mark != "" {
@@ -1105,13 +1105,13 @@ func (m Model) renderItem(it data.Item) string {
 			ageStyle.Render(fmt.Sprintf("%4s", relAge(it.Updated))),
 			ciIcon(it.CIState),
 			conflictIcon(it.Mergeable),
-			keyStyle.Render(it.Key),
+			hyperlink(it.URL, keyStyle.Render(it.Key)),
 			diffStat(it.Additions, it.Deletions))
 		if rl := reviewLabel(it.ReviewDecision); rl != "" {
 			parts = append(parts, rl)
 		}
 	case data.KindGHIssue:
-		parts = append(parts, " ", badgeOpen.Render("open"), keyStyle.Render(it.Key))
+		parts = append(parts, " ", badgeOpen.Render("open"), hyperlink(it.URL, keyStyle.Render(it.Key)))
 	}
 
 	title := it.Title
@@ -1164,7 +1164,7 @@ func gitMarker(pr *data.Item) string {
 	}
 	if pr.Merged {
 		// Merged: magenta merge glyph + the merge commit's (post-merge) CI.
-		return mergedStyle.Render(mergedGlyph+" "+repo+num) + ciIcon(pr.MergeCIState)
+		return hyperlink(pr.URL, mergedStyle.Render(mergedGlyph+" "+repo+num)) + ciIcon(pr.MergeCIState)
 	}
 	style := linkStyle
 	switch pr.ReviewDecision {
@@ -1173,7 +1173,7 @@ func gitMarker(pr *data.Item) string {
 	case "CHANGES_REQUESTED":
 		style = lipgloss.NewStyle().Foreground(colOrange)
 	}
-	return style.Render(githubGlyph+" "+repo+num) +
+	return hyperlink(pr.URL, style.Render(githubGlyph+" "+repo+num)) +
 		ciIcon(pr.CIState) + strings.TrimRight(conflictIcon(pr.Mergeable), " ")
 }
 
@@ -1286,7 +1286,7 @@ func relAge(t time.Time) string {
 
 func (m Model) renderSubtask(s data.Subtask) string {
 	line := fmt.Sprintf("    └ %s %s",
-		statusBadge(s.StatusCategory, s.Status), keyStyle.Render(s.Key))
+		statusBadge(s.StatusCategory, s.Status), hyperlink(s.URL, keyStyle.Render(s.Key)))
 	if mark := gitMarker(m.linkedPR(s.Key)); mark != "" {
 		line += " " + mark
 	} else if mark := m.branchMarker(s.Key); mark != "" {
