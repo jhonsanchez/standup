@@ -57,29 +57,25 @@ release:
     ---
     ## Install
 
-    **macOS / Linux — Homebrew**
-    ```sh
-    brew install jhonsanchez/tap/standup
-    ```
+    ### Linux
+    - **Homebrew**: `brew install jhonsanchez/tap/standup`
+    - **curl** (use `arm64` on ARM machines):
+      ```sh
+      curl -sL https://github.com/jhonsanchez/standup/releases/download/{{ .Tag }}/standup_{{ .Version }}_linux_amd64.tar.gz | tar xz standup && sudo install standup /usr/local/bin/
+      ```
+    - **Go**: `go install github.com/jhonsanchez/standup@{{ .Tag }}`
 
-    **Linux — direct binary** (use `arm64` on ARM machines)
-    ```sh
-    curl -sL https://github.com/jhonsanchez/standup/releases/download/{{ .Tag }}/standup_{{ .Version }}_linux_amd64.tar.gz | tar xz standup
-    sudo install standup /usr/local/bin/
-    ```
+    ### macOS
+    - **Homebrew**: `brew install jhonsanchez/tap/standup`
+    - **curl** (Apple Silicon `arm64`, Intel `amd64`):
+      ```sh
+      curl -sL https://github.com/jhonsanchez/standup/releases/download/{{ .Tag }}/standup_{{ .Version }}_darwin_arm64.tar.gz | tar xz standup && sudo install standup /usr/local/bin/
+      ```
+    - **Go**: `go install github.com/jhonsanchez/standup@{{ .Tag }}`
 
-    **macOS — direct binary** (Apple Silicon: `arm64`, Intel: `amd64`)
-    ```sh
-    curl -sL https://github.com/jhonsanchez/standup/releases/download/{{ .Tag }}/standup_{{ .Version }}_darwin_arm64.tar.gz | tar xz standup
-    sudo install standup /usr/local/bin/
-    ```
-
-    **Windows** — download `standup_{{ .Version }}_windows_amd64.zip` (or `arm64`) from the assets below, unzip, and put `standup.exe` on your `PATH`.
-
-    **Go**
-    ```sh
-    go install github.com/jhonsanchez/standup@{{ .Tag }}
-    ```
+    ### Windows
+    - **Manual**: download `standup_{{ .Version }}_windows_amd64.zip` (or `arm64`) from the assets below, unzip, and put `standup.exe` on your `PATH`
+    - **Go**: `go install github.com/jhonsanchez/standup@{{ .Tag }}`
 
     **Already installed?** `standup upgrade` (or `brew upgrade standup`).
 

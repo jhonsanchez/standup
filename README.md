@@ -7,31 +7,33 @@ issue⇄PR⇄branch cross-linking and one-key jumps into your local repos.
 
 ## Install
 
-**macOS / Linux (Homebrew):**
+### Linux
 
-```sh
-brew install jhonsanchez/tap/standup
-```
+- **Homebrew** (Linuxbrew): `brew install jhonsanchez/tap/standup`
+- **curl** — latest release, auto-detected version (use `arm64` on ARM):
+  ```sh
+  curl -sL https://github.com/jhonsanchez/standup/releases/latest/download/standup_$(curl -s https://api.github.com/repos/jhonsanchez/standup/releases/latest | grep -oP '"tag_name": "v\K[^"]+')_linux_amd64.tar.gz | tar xz standup
+  sudo install standup /usr/local/bin/
+  ```
+- **Go**: `go install github.com/jhonsanchez/standup@latest` (lands in `~/go/bin`)
 
-**Linux (direct binary, e.g. Ubuntu):**
+### macOS
 
-```sh
-curl -sL https://github.com/jhonsanchez/standup/releases/latest/download/standup_$(curl -s https://api.github.com/repos/jhonsanchez/standup/releases/latest | grep -oP '"tag_name": "v\K[^"]+')_linux_amd64.tar.gz | tar xz standup
-sudo install standup /usr/local/bin/     # use _arm64 on ARM machines
-```
+- **Homebrew**: `brew install jhonsanchez/tap/standup`
+- **curl**: as above with `darwin_arm64` (Apple Silicon) or `darwin_amd64` (Intel)
+- **Go**: `go install github.com/jhonsanchez/standup@latest`
 
-**Windows:** download the `windows_amd64.zip` (or `arm64`) from
-[Releases](https://github.com/jhonsanchez/standup/releases), unzip, and put
-`standup.exe` on your `PATH`. Use Windows Terminal for correct rendering.
+### Windows
 
-**Any platform with Go:**
+- **Manual**: download `standup_<version>_windows_amd64.zip` (or `arm64`) from
+  [Releases](https://github.com/jhonsanchez/standup/releases), unzip, and put
+  `standup.exe` on your `PATH`. Use Windows Terminal for correct rendering.
+- **Go**: `go install github.com/jhonsanchez/standup@latest`
 
-```sh
-go install github.com/jhonsanchez/standup@latest    # lands in ~/go/bin
-```
+### Updating
 
-**Update**: `standup upgrade` — detects the install method and updates in
-place (`brew upgrade standup` for brew installs, `go install @latest` for Go
+`standup upgrade` detects the install method and updates in place
+(`brew upgrade standup` for brew installs, `go install @latest` for Go
 installs, direct binary swap otherwise; on Windows it points you to the
 releases page).
 
