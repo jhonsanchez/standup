@@ -495,6 +495,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				msg.issues = st.issues
 			}
 		}
+		// GitHub search sometimes silently returns zero results with no
+		// error. A 30-day merged window collapsing to nothing between
+		// refreshes is not a real transition — keep the previous list so
+		// merged markers and alerts don't flicker away.
+		if st.loaded && len(msg.merged) == 0 && len(st.merged) > 0 {
+			msg.merged = st.merged
+		}
 		st.loading = false
 		st.loaded = true
 		st.fetchedAt = time.Now()
