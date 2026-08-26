@@ -99,6 +99,7 @@ type Model struct {
 	version        string // running version, for the update notice
 	updateAvail    string // newer release tag, when detected
 	updateApplied  string // tag auto-installed in the background
+	updateSkip     string // why auto-update could not apply (guides the user)
 	detailStack    []detailState
 	pick           []data.Item // jump-target picker overlay
 	pendingG       bool        // first g of a gg sequence (detail view)
@@ -187,9 +188,12 @@ type newVersionMsg struct {
 }
 
 type autoUpdatedMsg struct {
-	tag string
-	err error
+	tag  string
+	skip string
+	err  error
 }
+
+type recheckUpdateMsg struct{}
 
 // checkForUpdate resolves the latest release tag once at startup (via the
 // release redirect — no API, no rate limits) and surfaces a footer notice.
@@ -514,24 +518,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case newVersionMsg:
-		if msg.tag != "" && msg.tag != "v"+m.version {
+		// Re-arm the check so long-lived sessions keep learning about
+		// new releases (Claude-style), not just at startup.
+		recheck := tea.Tick(30*time.Minute, func(time.Time) tea.Msg { return recheckUpdateMsg{} })
+		if msg.tag != "" && msg.tag != "v"+m.version && m.updateApplied == "" {
 			m.updateAvail = msg.tag
 			if m.cfg.AutoUpdateEnabled() {
 				current := m.version
-				return m, func() tea.Msg {
-					tag, err := upgrade.AutoUpdate(current)
-					return autoUpdatedMsg{tag: tag, err: err}
-				}
+				return m, tea.Batch(recheck, func() tea.Msg {
+					tag, skip, err := upgrade.AutoUpdate(current)
+					return autoUpdatedMsg{tag: tag, skip: skip, err: err}
+				})
 			}
 		}
-		return m, nil
+		return m, recheck
+
+	case recheckUpdateMsg:
+		return m, m.checkForUpdate()
 
 	case autoUpdatedMsg:
 		if msg.err == nil && msg.tag != "" {
 			m.updateAvail = ""
 			m.updateApplied = msg.tag
 		}
-		// Errors or skips (brew/go/unwritable) keep the plain notice.
+		if msg.skip != "" {
+			m.updateSkip = msg.skip
+		}
 		return m, nil
 
 	case autoTickMsg:
@@ -1070,8 +1082,12 @@ func (m Model) View() string {
 		fparts = append(fparts, helpStyle.MaxWidth(m.width).Render(
 			"✓ auto-updated to "+m.updateApplied+" — restart standup to apply"))
 	} else if m.updateAvail != "" {
+		why := "run `standup upgrade` (or brew upgrade standup)"
+		if m.updateSkip != "" {
+			why = m.updateSkip
+		}
 		fparts = append(fparts, helpStyle.MaxWidth(m.width).Render(
-			"⬆ "+m.updateAvail+" available — run `standup upgrade` (or brew upgrade standup)"))
+			"⬆ "+m.updateAvail+" available — "+why))
 	}
 	if m.clientPick {
 		fparts = append(fparts, headerLabel.Render("Switch client:"))

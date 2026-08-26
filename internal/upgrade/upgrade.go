@@ -207,60 +207,60 @@ func downloadLatest(exe, current string) error {
 	return nil
 }
 
-// AutoUpdate silently updates a direct-binary install in a user-writable
-// location. It returns the new tag, or "" when it (safely) did nothing:
-// dev builds, brew/go-managed installs, unwritable dirs, or already current.
-func AutoUpdate(current string) (string, error) {
+// AutoUpdate silently updates the install when a newer release exists.
+// skipReason explains a safe no-op (go-managed, unwritable dir, …).
+func AutoUpdate(current string) (tag, skipReason string, err error) {
 	if current == "" || current == "dev" || runtime.GOOS == "windows" {
-		return "", nil
+		return "", "", nil
 	}
-	exe, err := os.Executable()
-	if err != nil {
-		return "", nil
+	exe, e := os.Executable()
+	if e != nil {
+		return "", "", nil
 	}
 	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = resolved
 	}
 	if strings.Contains(exe, "/Cellar/") || strings.Contains(exe, "/linuxbrew/") {
-		return brewAutoUpdate(current)
+		t, err := brewAutoUpdate(current)
+		return t, "", err
 	}
 	if inGoBin(exe) {
-		return "", nil
+		return "", "go-managed install — run: go install github.com/jhonsanchez/standup@latest", nil
 	}
 	// Only proceed when the target directory is writable — never escalate.
-	if f, err := os.OpenFile(exe+".new", os.O_CREATE|os.O_WRONLY, 0o755); err != nil {
-		return "", nil
+	if f, e := os.OpenFile(exe+".new", os.O_CREATE|os.O_WRONLY, 0o755); e != nil {
+		return "", exe + " is not user-writable — run `standup upgrade` (sudo) or reinstall via install.sh to ~/.local/bin", nil
 	} else {
 		f.Close()
 		os.Remove(exe + ".new")
 	}
 
 	client := &http.Client{Timeout: 120 * time.Second}
-	rel, err := latestRelease(client)
-	if err != nil {
-		return "", err
+	rel, e2 := latestRelease(client)
+	if e2 != nil {
+		return "", "", e2
 	}
 	if rel.Tag == "v"+current {
-		return "", nil
+		return "", "", nil
 	}
-	tmp, err := downloadVerified(client, rel)
-	if err != nil {
-		return "", err
+	tmp, e3 := downloadVerified(client, rel)
+	if e3 != nil {
+		return "", "", e3
 	}
 	defer os.Remove(tmp)
-	data, err := os.ReadFile(tmp)
-	if err != nil {
-		return "", err
+	data, e4 := os.ReadFile(tmp)
+	if e4 != nil {
+		return "", "", e4
 	}
 	staged := exe + ".new"
-	if err := os.WriteFile(staged, data, 0o755); err != nil {
-		return "", err
+	if e5 := os.WriteFile(staged, data, 0o755); e5 != nil {
+		return "", "", e5
 	}
-	if err := os.Rename(staged, exe); err != nil {
+	if e6 := os.Rename(staged, exe); e6 != nil {
 		os.Remove(staged)
-		return "", err
+		return "", "", e6
 	}
-	return rel.Tag, nil
+	return rel.Tag, "", nil
 }
 
 // installBinary replaces exe with src, escalating with sudo when the target
