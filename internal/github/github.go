@@ -36,7 +36,9 @@ func Fetch(ctx context.Context, g *config.GitHub) (prs, merged, issues []data.It
 	for _, scope := range scopes {
 		authoredQ := strings.TrimSpace(fmt.Sprintf("is:open is:pr archived:false author:%s %s", login, scope))
 		reviewQ := strings.TrimSpace(fmt.Sprintf("is:open is:pr archived:false review-requested:%s %s", login, scope))
-		mergedQ := strings.TrimSpace(fmt.Sprintf("is:pr is:merged archived:false merged:>=%s %s", since, scope))
+		// sort:updated-desc matters: without it search returns an arbitrary
+		// "relevant" 50 of possibly hundreds, dropping recent merges.
+		mergedQ := strings.TrimSpace(fmt.Sprintf("is:pr is:merged archived:false merged:>=%s sort:updated-desc %s", since, scope))
 
 		var resp struct {
 			Authored searchNodes `json:"authored"`

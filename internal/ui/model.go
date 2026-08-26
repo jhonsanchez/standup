@@ -501,6 +501,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// merged markers and alerts don't flicker away.
 		if st.loaded && len(msg.merged) == 0 && len(st.merged) > 0 {
 			msg.merged = st.merged
+			m.status = "⚠ github merged-PR search returned nothing (transient) — kept previous data, retrying next refresh"
 		}
 		st.loading = false
 		st.loaded = true
