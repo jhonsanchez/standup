@@ -221,7 +221,10 @@ func AutoUpdate(current string) (string, error) {
 	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = resolved
 	}
-	if strings.Contains(exe, "/Cellar/") || strings.Contains(exe, "/linuxbrew/") || inGoBin(exe) {
+	if strings.Contains(exe, "/Cellar/") || strings.Contains(exe, "/linuxbrew/") {
+		return brewAutoUpdate(current)
+	}
+	if inGoBin(exe) {
 		return "", nil
 	}
 	// Only proceed when the target directory is writable — never escalate.
@@ -283,4 +286,51 @@ func installBinary(src, exe string) error {
 		return fmt.Errorf("sudo install failed: %w — run manually: sudo install -m 755 %s %s", err, src, exe)
 	}
 	return nil
+}
+
+// InstallKind reports how the running binary is installed.
+func InstallKind() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return "unknown"
+	}
+	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = resolved
+	}
+	switch {
+	case strings.Contains(exe, "/Cellar/") || strings.Contains(exe, "/linuxbrew/"):
+		return "brew"
+	case inGoBin(exe):
+		return "go install"
+	default:
+		return "binary"
+	}
+}
+
+// brewAutoUpdate keeps brew installs current the brew way: refresh the tap
+// clone (it goes stale) and run brew upgrade in the background.
+func brewAutoUpdate(current string) (string, error) {
+	client := &http.Client{Timeout: 30 * time.Second}
+	rel, err := latestRelease(client)
+	if err != nil || rel.Tag == "v"+current {
+		return "", err
+	}
+	if tap, err := exec.Command("brew", "--repository", "jhonsanchez/tap").Output(); err == nil {
+		_ = exec.Command("git", "-C", strings.TrimSpace(string(tap)), "pull", "--quiet").Run()
+	}
+	out, err := exec.Command("brew", "upgrade", "standup").CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("brew upgrade: %s", strings.Join(strings.Fields(string(out)), " ")[:min(120, len(out))])
+	}
+	if strings.Contains(string(out), "Upgraded") {
+		return rel.Tag, nil
+	}
+	return "", nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

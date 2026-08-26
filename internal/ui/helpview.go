@@ -1,9 +1,13 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/jhonsanchez/standup/internal/config"
+	"github.com/jhonsanchez/standup/internal/upgrade"
 )
 
 var (
@@ -113,7 +117,19 @@ func (m Model) viewHelp() string {
 	}
 	body := lipgloss.JoinHorizontal(lipgloss.Top, rendered...)
 
-	title := headerLabel.Render("Keyboard shortcuts") + subtaskStyle.Render("  ("+ctxName+" view — only currently available keys are shown)")
+	updateInfo := "up to date"
+	switch {
+	case m.updateApplied != "":
+		updateInfo = "updated to " + m.updateApplied + " — restart to apply"
+	case m.updateAvail != "":
+		updateInfo = m.updateAvail + " available"
+	case m.version == "dev":
+		updateInfo = "dev build"
+	}
+	about := subtaskStyle.MaxWidth(m.width - 2).Render(fmt.Sprintf(
+		"standup v%s (%s) · %s · config %s · github.com/jhonsanchez/standup",
+		m.version, upgrade.InstallKind(), updateInfo, config.Path()))
+	title := headerLabel.Render("Keyboard shortcuts") + subtaskStyle.Render("  ("+ctxName+" view — only currently available keys are shown)") + "\n" + about
 	footer := helpKeyStyle.Render("<esc>") + helpArrowStyle.Render(" close   ") +
 		helpKeyStyle.Render("<any key>") + helpArrowStyle.Render(" close and run it")
 
