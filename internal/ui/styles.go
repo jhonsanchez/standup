@@ -75,8 +75,12 @@ var (
 	commentGlyph = "\uf075"
 )
 
-// mergedStyle is GitHub's "merged" purple.
-var mergedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("170"))
+// mergedStyle is GitHub's "merged" purple; in-review markers are blue so
+// the two never blur together.
+var (
+	mergedStyle   = lipgloss.NewStyle().Foreground(colPurple)
+	inReviewStyle = lipgloss.NewStyle().Foreground(colBlue)
+)
 
 func setIcons(mode string) {
 	if mode == "ascii" {

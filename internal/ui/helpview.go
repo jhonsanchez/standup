@@ -65,10 +65,10 @@ func (m Model) viewHelp() string {
 	// Legend: the row markers and icons, shown with their real styling.
 	legend := []string{
 		helpGroupStyle.Render("Legend"),
-		"  " + linkStyle.Render(githubGlyph+" repo#12") + " " + helpArrowStyle.Render("→") + " linked PR (purple: in review)",
+		"  " + inReviewStyle.Render(githubGlyph+" repo#12") + " " + helpArrowStyle.Render("→") + " linked PR, in review (blue)",
 		"  " + lipgloss.NewStyle().Foreground(colGreen).Render(githubGlyph+" repo#12") + " " + helpArrowStyle.Render("→") + " linked PR approved",
 		"  " + lipgloss.NewStyle().Foreground(colOrange).Render(githubGlyph+" repo#12") + " " + helpArrowStyle.Render("→") + " linked PR: changes requested",
-		"  " + mergedStyle.Render(mergedGlyph+" repo#12") + " " + helpArrowStyle.Render("→") + " PR merged (icon = post-merge pipeline)",
+		"  " + mergedStyle.Render(mergedGlyph+" repo#12") + " " + helpArrowStyle.Render("→") + " PR merged — purple, GitHub-style (icon = post-merge pipeline)",
 		"  " + subtaskStyle.Render(branchGlyph+" repo:branch") + " " + helpArrowStyle.Render("→") + " branch exists, no PR yet",
 		"  " + iconPass + " " + iconFail + " " + iconPending + " " + iconNone + " " + helpArrowStyle.Render("→") + " CI passing / failing / running / none",
 		"  " + iconClash + " " + helpArrowStyle.Render("→") + " merge conflicts",

@@ -1442,7 +1442,7 @@ func gitMarker(pr *data.Item) string {
 		// Merged: magenta merge glyph + the merge commit's (post-merge) CI.
 		return hyperlink(pr.URL, mergedStyle.Render(mergedGlyph+" "+repo+num)) + ciIcon(pr.MergeCIState)
 	}
-	style := linkStyle
+	style := inReviewStyle
 	switch pr.ReviewDecision {
 	case "APPROVED":
 		style = lipgloss.NewStyle().Foreground(colGreen)
