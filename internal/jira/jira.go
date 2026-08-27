@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sort"
 	"strings"
 	"time"
 
@@ -18,7 +17,7 @@ import (
 
 const defaultJQL = `assignee = currentUser() AND sprint in openSprints() ORDER BY updated DESC`
 
-var fields = []string{"summary", "status", "issuetype", "priority", "subtasks", "description", "comment"}
+var fields = []string{"summary", "status", "issuetype", "priority", "subtasks", "description", "comment", "updated"}
 
 type searchResponse struct {
 	Issues []issue `json:"issues"`
@@ -47,6 +46,7 @@ type issue struct {
 		Comment     *struct {
 			Total int `json:"total"`
 		} `json:"comment"`
+		Updated string `json:"updated"`
 	} `json:"fields"`
 }
 
@@ -148,11 +148,7 @@ func FetchSprintIssues(ctx context.Context, j *config.Jira) ([]data.Item, error)
 		}
 	}
 
-	// In progress first, then to do, then done.
-	rank := map[string]int{"indeterminate": 0, "new": 1, "done": 2}
-	sort.SliceStable(items, func(a, b int) bool {
-		return rank[items[a].StatusCategory] < rank[items[b].StatusCategory]
-	})
+	// Display grouping/ordering happens in the UI (status sections).
 	return items, nil
 }
 
@@ -301,6 +297,7 @@ func toItem(base string, is issue) data.Item {
 	if is.Fields.Comment != nil {
 		it.CommentCount = is.Fields.Comment.Total
 	}
+	it.Updated = parseJiraTime(is.Fields.Updated)
 	for _, st := range is.Fields.Subtasks {
 		it.Subtasks = append(it.Subtasks, data.Subtask{
 			Key:            st.Key,

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -78,6 +79,7 @@ type row struct {
 	item    int
 	subtask int // -1 for the item line itself
 	bucket  data.Bucket
+	section string // status-section header (issues view)
 	count   int
 }
 
@@ -449,20 +451,98 @@ func (m *Model) rows() []row {
 		return rows
 	}
 
-	for i, it := range items {
-		rows = append(rows, row{kind: rowItem, item: i, subtask: -1})
-		if it.Kind == data.KindJiraIssue && m.expand[it.Key] {
-			for s := range it.Subtasks {
-				rows = append(rows, row{kind: rowSubtask, item: i, subtask: s})
-			}
-			if prs := m.linkedPRs(it.Key); len(prs) > 1 {
-				for p := range prs {
-					rows = append(rows, row{kind: rowPR, item: i, subtask: p})
+	// Issues view: status sections (like the PR buckets), parent stories
+	// as rows, subtasks/PRs nested beneath on expand.
+	for _, sec := range m.statusSections(items) {
+		rows = append(rows, row{kind: rowHeader, item: -1, subtask: -1, section: sec.name, count: len(sec.idxs)})
+		if m.collapsed[m.sectionKey(sec.name)] {
+			continue
+		}
+		for _, i := range sec.idxs {
+			it := items[i]
+			rows = append(rows, row{kind: rowItem, item: i, subtask: -1, section: sec.name})
+			if it.Kind == data.KindJiraIssue && m.expand[it.Key] {
+				for s := range it.Subtasks {
+					rows = append(rows, row{kind: rowSubtask, item: i, subtask: s, section: sec.name})
+				}
+				if prs := m.linkedPRs(it.Key); len(prs) > 1 {
+					for p := range prs {
+						rows = append(rows, row{kind: rowPR, item: i, subtask: p, section: sec.name})
+					}
 				}
 			}
 		}
 	}
 	return rows
+}
+
+type statusSection struct {
+	name string
+	cat  string
+	idxs []int
+}
+
+func (m *Model) headerKey(r row) string {
+	if r.section != "" {
+		return m.sectionKey(r.section)
+	}
+	return m.bucketKey(r.bucket)
+}
+
+func (m *Model) sectionKey(name string) string {
+	return fmt.Sprintf("isec:%d:%s", m.client, name)
+}
+
+// statusSections groups items by their status name, ordered by the
+// configured status_order, then by category for unknown statuses. Items
+// inside a section are newest-modified first.
+func (m *Model) statusSections(items []data.Item) []statusSection {
+	order := config.DefaultStatusOrder
+	if j := m.cfg.Clients[m.client].Jira; j != nil && len(j.StatusOrder) > 0 {
+		order = j.StatusOrder
+	}
+	rankOf := func(it data.Item) (int, int) {
+		for i, s := range order {
+			if strings.EqualFold(s, it.Status) {
+				return 0, i
+			}
+		}
+		cat := map[string]int{"new": 0, "indeterminate": 1, "done": 2}[it.StatusCategory]
+		return 1, cat // unknowns after configured ones, by category
+	}
+	byName := map[string]*statusSection{}
+	var secs []*statusSection
+	for i, it := range items {
+		name := it.Status
+		if it.Kind == data.KindGHIssue {
+			name = "GitHub"
+		}
+		sec := byName[name]
+		if sec == nil {
+			sec = &statusSection{name: name, cat: it.StatusCategory}
+			byName[name] = sec
+			secs = append(secs, sec)
+		}
+		sec.idxs = append(sec.idxs, i)
+	}
+	sort.SliceStable(secs, func(a, b int) bool {
+		ta, ia := rankOf(items[secs[a].idxs[0]])
+		tb, ib := rankOf(items[secs[b].idxs[0]])
+		if ta != tb {
+			return ta < tb
+		}
+		return ia < ib
+	})
+	for _, sec := range secs {
+		sort.SliceStable(sec.idxs, func(a, b int) bool {
+			return items[sec.idxs[a]].Updated.After(items[sec.idxs[b]].Updated)
+		})
+	}
+	out := make([]statusSection, len(secs))
+	for i, s := range secs {
+		out[i] = *s
+	}
+	return out
 }
 
 func (m *Model) clampCursor(rows []row) int {
@@ -712,7 +792,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		switch r := rows[cur]; r.kind {
 		case rowHeader:
-			m.collapsed[m.bucketKey(r.bucket)] = false
+			m.collapsed[m.headerKey(r)] = false
 		case rowItem:
 			it := m.items()[r.item]
 			if it.Kind == data.KindJiraIssue && (len(it.Subtasks) > 0 || len(m.linkedPRs(it.Key)) > 1) {
@@ -728,7 +808,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		switch r := rows[cur]; r.kind {
 		case rowHeader:
-			m.collapsed[m.bucketKey(r.bucket)] = true
+			m.collapsed[m.headerKey(r)] = true
 		case rowSubtask, rowPR:
 			parent := m.items()[r.item]
 			m.expand[parent.Key] = false
@@ -737,9 +817,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			it := m.items()[r.item]
 			if it.Kind == data.KindJiraIssue && m.expand[it.Key] {
 				m.expand[it.Key] = false
-			} else if m.view == viewPRs {
-				m.collapsed[m.bucketKey(r.bucket)] = true
-				m.setCursor(func(x row) bool { return x.kind == rowHeader && x.bucket == r.bucket })
+			} else {
+				m.collapsed[m.headerKey(r)] = true
+				m.setCursor(func(x row) bool {
+					return x.kind == rowHeader && x.bucket == r.bucket && x.section == r.section
+				})
 			}
 		}
 		return m, nil
@@ -886,7 +968,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		r := rows[cur]
 		if r.kind == rowHeader {
-			k := m.bucketKey(r.bucket)
+			k := m.headerKey(r)
 			m.collapsed[k] = !m.collapsed[k]
 			return m, nil
 		}
@@ -903,7 +985,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		r := rows[cur]
 		if r.kind == rowHeader {
-			k := m.bucketKey(r.bucket)
+			k := m.headerKey(r)
 			m.collapsed[k] = !m.collapsed[k]
 			return m, nil
 		}
@@ -928,17 +1010,25 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.openDetail(it)
 
 	case m.km.Is(msg, "groups-all"):
-		// Toggle all PR groups at once.
+		// Toggle all groups at once (PR buckets or status sections).
+		var keys []string
 		if m.view == viewPRs {
-			any := false
 			for _, b := range data.BucketOrder {
-				if !m.collapsed[m.bucketKey(b)] {
-					any = true
-				}
+				keys = append(keys, m.bucketKey(b))
 			}
-			for _, b := range data.BucketOrder {
-				m.collapsed[m.bucketKey(b)] = any
+		} else {
+			for _, sec := range m.statusSections(m.items()) {
+				keys = append(keys, m.sectionKey(sec.name))
 			}
+		}
+		any := false
+		for _, k := range keys {
+			if !m.collapsed[k] {
+				any = true
+			}
+		}
+		for _, k := range keys {
+			m.collapsed[k] = any
 		}
 		return m, nil
 
@@ -1146,7 +1236,7 @@ func (m Model) listHelp() string {
 		}
 		switch r := rows[cur]; r.kind {
 		case rowHeader:
-			if m.collapsed[m.bucketKey(r.bucket)] {
+			if m.collapsed[m.headerKey(r)] {
 				parts = append(parts, "enter open group")
 			} else {
 				parts = append(parts, "enter close group")
@@ -1265,7 +1355,7 @@ func (m Model) renderItem(it data.Item) string {
 				marker = "▸"
 			}
 		}
-		parts = append(parts, marker, statusBadge(it.StatusCategory, it.Status), hyperlink(it.URL, keyStyle.Render(it.Key)))
+		parts = append(parts, marker, hyperlink(it.URL, keyStyle.Render(it.Key)))
 		if len(prs) > 0 {
 			mark := gitMarker(&prs[0])
 			if len(prs) > 1 {
@@ -1297,7 +1387,7 @@ func (m Model) renderItem(it data.Item) string {
 		}
 		parts = append(parts, alertIcons(m.prAlerts(it))...)
 	case data.KindGHIssue:
-		parts = append(parts, " ", badgeOpen.Render("open"), hyperlink(it.URL, keyStyle.Render(it.Key)))
+		parts = append(parts, " ", hyperlink(it.URL, keyStyle.Render(it.Key)))
 	}
 
 	title := it.Title
@@ -1446,6 +1536,24 @@ func oscCopy(text string) error {
 }
 
 func (m Model) renderHeader(r row) string {
+	if r.section != "" {
+		marker := "▾"
+		if m.collapsed[m.sectionKey(r.section)] {
+			marker = "▸"
+		}
+		cat := ""
+		for _, it := range m.items() {
+			if it.Status == r.section {
+				cat = it.StatusCategory
+				break
+			}
+		}
+		dot := statusDot(cat)
+		return fmt.Sprintf("%s %s %s %s",
+			headerMarker.Render(marker), dot,
+			headerLabel.Render(r.section),
+			headerCount.Render(fmt.Sprint(r.count)))
+	}
 	marker := "▾"
 	if m.collapsed[m.bucketKey(r.bucket)] {
 		marker = "▸"

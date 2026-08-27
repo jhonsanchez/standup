@@ -132,6 +132,13 @@
               "jql": {
                 "type": "string",
                 "description": "Full replacement for the default query (assignee = currentUser() AND sprint in openSprints()). Use for Kanban or custom boards."
+              },
+              "status_order": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Section order for the Issues view. Default: To Do, In Progress, Pull Request, Validate, Done. Unlisted statuses sort after, by category."
               }
             }
           },

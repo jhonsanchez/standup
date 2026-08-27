@@ -96,8 +96,7 @@ func defaultKeymap() *keymap {
 		{id: "toggle", primary: " ", label: "space", group: grpItem,
 			desc: "Toggle subtasks or the PR group under the cursor", ctx: ctxList},
 		{id: "groups-all", primary: "z", group: grpItem,
-			desc: "Collapse or expand all PR groups at once", ctx: ctxList,
-			when: func(m *Model) bool { return m.view == viewPRs }},
+			desc: "Collapse or expand all groups at once (status sections / PR buckets)", ctx: ctxList},
 
 		// Git & tools
 		{id: "git-view", primary: "g", group: grpGit, short: "g git",

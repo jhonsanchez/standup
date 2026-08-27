@@ -241,7 +241,13 @@ type Jira struct {
 	Projects string `yaml:"projects,omitempty"`
 	// JQL overrides the default "my issues in open sprints" query.
 	JQL string `yaml:"jql,omitempty"`
+	// StatusOrder is the section order for the Issues view. Statuses not
+	// listed sort after, by category (todo → in-progress → done).
+	StatusOrder []string `yaml:"status_order,omitempty"`
 }
+
+// DefaultStatusOrder matches a common Jira software workflow.
+var DefaultStatusOrder = []string{"To Do", "In Progress", "Pull Request", "Validate", "Done"}
 
 func (j *Jira) IsDataCenter() bool {
 	if j.Flavor != "" {

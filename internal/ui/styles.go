@@ -92,6 +92,18 @@ func setIcons(mode string) {
 	}
 }
 
+// statusDot colors a status-section header dot by category.
+func statusDot(category string) string {
+	c := colDim
+	switch category {
+	case "indeterminate":
+		c = colBlue
+	case "done":
+		c = colGreen
+	}
+	return lipgloss.NewStyle().Foreground(c).Render("●")
+}
+
 func bucketDot(b data.Bucket) string {
 	var c lipgloss.Color
 	switch b {

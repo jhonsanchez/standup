@@ -190,8 +190,11 @@ not remappable. Arrow keys, `ctrl+c`, and other aliases always keep working.
 
 ## Views
 
-- **Issues** (first tab): your Jira issues in the current sprint — status
-  badge colored by category, `[done/total]` subtask progress, expandable
+- **Issues** (first tab): your Jira sprint issues grouped into collapsible
+  **status sections** (To Do / In Progress / Pull Request / Validate / Done —
+  order configurable via `jira.status_order`), newest-modified first within
+  each. Parent stories lead; only subtasks carry their own status badge.
+  Rows show `[done/total]` subtask progress, expandable
   subtask rows — followed by GitHub issues assigned to you. Issues and
   subtasks show a ` repo#n` marker (colored by review state, with
   CI/conflict icons) when an open PR references their key, or a dim
