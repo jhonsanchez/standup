@@ -39,13 +39,18 @@ func Fetch(ctx context.Context, g *config.GitHub) (prs, merged, issues []data.It
 		// sort:updated-desc matters: without it search returns an arbitrary
 		// "relevant" 50 of possibly hundreds, dropping recent merges.
 		mergedQ := strings.TrimSpace(fmt.Sprintf("is:pr is:merged archived:false merged:>=%s sort:updated-desc %s", since, scope))
+		// Busy orgs merge more than 50 PRs in days, pushing the user's own
+		// older sprint merges off the recent-50 — a dedicated author query
+		// keeps their PRs linked regardless of org volume.
+		mergedMineQ := strings.TrimSpace(fmt.Sprintf("is:pr is:merged archived:false author:%s merged:>=%s sort:updated-desc %s", login, since, scope))
 
 		var resp struct {
-			Authored searchNodes `json:"authored"`
-			Review   searchNodes `json:"review"`
-			MergedPR searchNodes `json:"mergedPRs"`
+			Authored   searchNodes `json:"authored"`
+			Review     searchNodes `json:"review"`
+			MergedPR   searchNodes `json:"mergedPRs"`
+			MergedMine searchNodes `json:"mergedMine"`
 		}
-		vars := map[string]any{"authored": authoredQ, "review": reviewQ, "merged": mergedQ}
+		vars := map[string]any{"authored": authoredQ, "review": reviewQ, "merged": mergedQ, "mergedMine": mergedMineQ}
 		if err := gql(ctx, g, token, prSearchQuery, vars, &resp); err != nil {
 			return nil, nil, nil, err
 		}
@@ -63,7 +68,7 @@ func Fetch(ctx context.Context, g *config.GitHub) (prs, merged, issues []data.It
 			seen[n.URL] = true
 			prs = append(prs, toPRItem(n, false))
 		}
-		for _, n := range resp.MergedPR.Nodes {
+		for _, n := range append(resp.MergedPR.Nodes, resp.MergedMine.Nodes...) {
 			if n.URL == "" || seen[n.URL] {
 				continue
 			}
@@ -107,10 +112,11 @@ func Fetch(ctx context.Context, g *config.GitHub) (prs, merged, issues []data.It
 // ---- GraphQL ----
 
 const prSearchQuery = `
-query($authored: String!, $review: String!, $merged: String!) {
+query($authored: String!, $review: String!, $merged: String!, $mergedMine: String!) {
   authored: search(query: $authored, type: ISSUE, first: 50) { nodes { ...pr } }
   review: search(query: $review, type: ISSUE, first: 50) { nodes { ...pr } }
   mergedPRs: search(query: $merged, type: ISSUE, first: 50) { nodes { ...prm } }
+  mergedMine: search(query: $mergedMine, type: ISSUE, first: 50) { nodes { ...prm } }
 }
 fragment prm on PullRequest {
   number title url updatedAt additions deletions headRefName headRefOid
